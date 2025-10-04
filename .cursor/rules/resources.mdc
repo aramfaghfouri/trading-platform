@@ -1,0 +1,16 @@
+---
+description: Use these resources for understanding the project code.
+alwaysApply: false
+---
+Use the following resources for understanding the core of the 
+project's used code and concepts and tracking tasks.
+@README.md
+@README-Track.md
+
+Once a task is done, update both above documents.
+README-Track.md should keep track of what is done and what needs to be done in comprehensive detail.
+Done tasks should be marked as [x]
+Unfinished tasks should be marked as [ ]
+
+Use the following for documentation of the QuantConnect:
+https://github.com/QuantConnect/Lean

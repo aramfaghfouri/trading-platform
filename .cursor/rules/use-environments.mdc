@@ -1,0 +1,7 @@
+---
+description: 
+globs: 
+alwaysApply: true
+---
+Use pnpm as a package manager instead of yarn, bun, or npm for node.js applications
+Use the Conda environment "env-marketing" for all python codes.
