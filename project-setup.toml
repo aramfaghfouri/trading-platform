@@ -1,0 +1,51 @@
+[data_collection]
+# Time configuration
+time_interval = "minute"
+start_date = "2024-10-05"
+end_date = "2025-10-04"
+
+# Tickers of interest
+tickers = [
+    "AAPL", "GOOGL", "MSFT", "TSLA", "AMZN", 
+    "NVDA", "META", "AMD", "XOM", "JPM",
+    "JNJ", "V", "PG", "UNH", "HD", "MA",
+    "DIS", "PYPL", "ADBE", "CRM", "NFLX",
+    "INTC", "CSCO", "PFE", "ABT", "TMO",
+    "ACN", "WMT", "KO", "PEP", "ABBV"
+]
+
+# Data collection settings
+rate_limit_delay = 13  # seconds between requests
+max_retries = 3
+timeout = 30
+
+# Storage settings
+data_directory = "data_results"
+logs_directory = "logs"
+enable_compression = true
+compression_format = "lz4"
+
+# Analysis settings
+enable_technical_analysis = true
+enable_heikin_ashi = true
+enable_peak_detection = true
+timezone = "America/New_York"
+
+[api]
+# Polygon.io API settings
+base_url = "https://api.polygon.io"
+rate_limit_per_minute = 5
+max_requests_per_day = 1000
+
+[processing]
+# Data processing settings
+chunk_size = 50000
+enable_parallel_processing = false
+max_workers = 4
+
+[output]
+# Output settings
+enable_csv_export = true
+enable_json_export = true
+enable_plotly_charts = true
+enable_matplotlib_plots = true

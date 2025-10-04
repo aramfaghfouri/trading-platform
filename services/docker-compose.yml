@@ -1,0 +1,70 @@
+version: '3.8'
+
+services:
+  # Polygon Data Collector Service
+  polygon-data-collector:
+    build: ./polygon-data-collector
+    ports:
+      - "8001:8000"
+    environment:
+      - POLYGON_API_KEY=${POLYGON_API_KEY}
+      - POLYGON_DATA_PATH=/app/data
+    volumes:
+      - ./polygon-data-collector/data:/app/data
+      - ./polygon-data-collector/logs:/app/logs
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - trading-platform
+
+  # Database for storing collected data
+  postgres:
+    image: postgres:15
+    environment:
+      POSTGRES_DB: trading_platform
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-password}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    ports:
+      - "5432:5432"
+    restart: unless-stopped
+    networks:
+      - trading-platform
+
+  # Redis for caching
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    restart: unless-stopped
+    networks:
+      - trading-platform
+
+  # API Gateway (future service)
+  api-gateway:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+    volumes:
+      - ./api-gateway/nginx.conf:/etc/nginx/nginx.conf
+    depends_on:
+      - polygon-data-collector
+    restart: unless-stopped
+    networks:
+      - trading-platform
+
+volumes:
+  postgres_data:
+  redis_data:
+
+networks:
+  trading-platform:
+    driver: bridge

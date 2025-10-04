@@ -1,0 +1,91 @@
+# Signal Trigger Rules Configuration
+# Define when signals should trigger trades
+
+trigger_rules:
+  # SPY - S&P 500 ETF
+  SPY:
+    - type: "multiple_signals"
+      required_signals: 2
+      time_window: "5m"
+      signal_types: ["BUY", "SELL"]
+      min_strength: 0.6
+      
+    - type: "strength_threshold"
+      threshold: 0.8
+      signal_types: ["BUY", "SELL"]
+      time_window: "1m"
+      
+    - type: "aggregated_signal"
+      aggregation_type: "weighted_average"
+      min_strength: 0.7
+      min_confidence: 0.6
+      time_window: "10m"
+      
+  # QQQ - NASDAQ ETF
+  QQQ:
+    - type: "multiple_signals"
+      required_signals: 3
+      time_window: "3m"
+      signal_types: ["BUY"]
+      min_strength: 0.5
+      
+    - type: "strength_threshold"
+      threshold: 0.75
+      signal_types: ["SELL"]
+      time_window: "1m"
+      
+  # IWM - Russell 2000 ETF
+  IWM:
+    - type: "majority_vote"
+      min_votes: 2
+      time_window: "5m"
+      signal_types: ["BUY", "SELL"]
+      
+  # Individual stocks - more conservative
+  AAPL:
+    - type: "strength_threshold"
+      threshold: 0.8
+      signal_types: ["BUY", "SELL"]
+      time_window: "2m"
+      
+  MSFT:
+    - type: "strength_threshold"
+      threshold: 0.8
+      signal_types: ["BUY", "SELL"]
+      time_window: "2m"
+      
+  GOOGL:
+    - type: "strength_threshold"
+      threshold: 0.8
+      signal_types: ["BUY", "SELL"]
+      time_window: "2m"
+      
+  # High volatility stocks - more signals required
+  TSLA:
+    - type: "multiple_signals"
+      required_signals: 3
+      time_window: "5m"
+      signal_types: ["BUY", "SELL"]
+      min_strength: 0.7
+      
+  NVDA:
+    - type: "multiple_signals"
+      required_signals: 3
+      time_window: "5m"
+      signal_types: ["BUY", "SELL"]
+      min_strength: 0.7
+      
+  AMD:
+    - type: "multiple_signals"
+      required_signals: 3
+      time_window: "5m"
+      signal_types: ["BUY", "SELL"]
+      min_strength: 0.7
+
+# Global trigger settings
+global_settings:
+  max_signals_per_minute: 10
+  signal_cooldown: 30  # seconds
+  market_hours_only: true
+  exclude_weekends: true
+  exclude_holidays: true

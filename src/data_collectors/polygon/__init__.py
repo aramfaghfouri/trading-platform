@@ -1,0 +1,1 @@
+# Polygon Data Collector Package

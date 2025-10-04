@@ -1,0 +1,52 @@
+# Trading Strategies Configuration
+# Define your trading strategies here
+
+strategies:
+  - id: "momentum_strategy_1"
+    name: "Momentum Strategy 1"
+    description: "Simple momentum strategy based on moving averages"
+    lean_file: "strategies/momentum/momentum_strategy.py"
+    symbols: ["SPY", "QQQ", "IWM"]
+    enabled: true
+    risk_limits:
+      max_position_size: 5000
+      max_daily_loss: 1000
+      max_drawdown: 0.15
+    signal_functions: ["weighted_average", "strength_threshold"]
+    parameters:
+      lookback_period: 20
+      momentum_threshold: 0.02
+      stop_loss: 0.05
+      
+  - id: "mean_reversion_strategy_1"
+    name: "Mean Reversion Strategy 1"
+    description: "Mean reversion strategy using Bollinger Bands"
+    lean_file: "strategies/mean_reversion/mean_reversion_strategy.py"
+    symbols: ["AAPL", "MSFT", "GOOGL"]
+    enabled: true
+    risk_limits:
+      max_position_size: 3000
+      max_daily_loss: 500
+      max_drawdown: 0.10
+    signal_functions: ["majority_vote", "strength_threshold"]
+    parameters:
+      bb_period: 20
+      bb_std: 2.0
+      rsi_period: 14
+      rsi_oversold: 30
+      rsi_overbought: 70
+      
+  - id: "custom_strategy_1"
+    name: "Custom Strategy 1"
+    description: "Custom strategy template"
+    lean_file: "strategies/custom/custom_strategy.py"
+    symbols: ["TSLA", "NVDA", "AMD"]
+    enabled: false
+    risk_limits:
+      max_position_size: 2000
+      max_daily_loss: 300
+      max_drawdown: 0.08
+    signal_functions: ["custom_aggregation"]
+    parameters:
+      custom_param_1: "value1"
+      custom_param_2: 42

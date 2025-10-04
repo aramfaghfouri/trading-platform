@@ -1,0 +1,90 @@
+# Risk Management Configuration
+# Define risk limits and controls
+
+# Portfolio-level risk limits
+portfolio_limits:
+  max_total_value: 100000  # Maximum total portfolio value
+  max_daily_loss: 5000     # Maximum daily loss
+  max_weekly_loss: 15000   # Maximum weekly loss
+  max_monthly_loss: 50000  # Maximum monthly loss
+  max_drawdown: 0.20       # Maximum drawdown (20%)
+  max_leverage: 1.0        # Maximum leverage (no margin)
+
+# Position-level risk limits
+position_limits:
+  max_position_size: 10000     # Maximum position size per symbol
+  max_position_pct: 0.10       # Maximum position as % of portfolio
+  max_sector_exposure: 0.30    # Maximum exposure to any sector
+  max_correlation: 0.70        # Maximum correlation between positions
+  
+# Symbol-specific limits
+symbol_limits:
+  SPY:
+    max_position_size: 15000
+    max_position_pct: 0.15
+    max_daily_trades: 5
+    
+  QQQ:
+    max_position_size: 12000
+    max_position_pct: 0.12
+    max_daily_trades: 5
+    
+  IWM:
+    max_position_size: 8000
+    max_position_pct: 0.08
+    max_daily_trades: 3
+    
+  # Individual stocks - more conservative
+  AAPL:
+    max_position_size: 5000
+    max_position_pct: 0.05
+    max_daily_trades: 3
+    
+  MSFT:
+    max_position_size: 5000
+    max_position_pct: 0.05
+    max_daily_trades: 3
+    
+  GOOGL:
+    max_position_size: 5000
+    max_position_pct: 0.05
+    max_daily_trades: 3
+    
+  # High volatility stocks - even more conservative
+  TSLA:
+    max_position_size: 3000
+    max_position_pct: 0.03
+    max_daily_trades: 2
+    
+  NVDA:
+    max_position_size: 3000
+    max_position_pct: 0.03
+    max_daily_trades: 2
+    
+  AMD:
+    max_position_size: 3000
+    max_position_pct: 0.03
+    max_daily_trades: 2
+
+# Trading session limits
+session_limits:
+  max_trades_per_day: 50
+  max_trades_per_hour: 10
+  max_trades_per_minute: 3
+  trading_start_time: "09:30"
+  trading_end_time: "16:00"
+  timezone: "America/New_York"
+
+# Risk monitoring
+risk_monitoring:
+  check_interval: 60        # Check risk limits every 60 seconds
+  alert_threshold: 0.80     # Alert when 80% of limit reached
+  stop_threshold: 0.95      # Stop trading when 95% of limit reached
+  auto_reduce: true         # Automatically reduce positions when limits approached
+  
+# Emergency controls
+emergency_controls:
+  circuit_breaker: true     # Enable circuit breaker
+  max_consecutive_losses: 5 # Stop after 5 consecutive losses
+  max_loss_per_trade: 1000  # Maximum loss per individual trade
+  panic_sell_threshold: 0.15 # Panic sell if portfolio drops 15% in one day
