@@ -89,6 +89,23 @@ See [README-Track.md](README-Track.md) for detailed progress tracking and implem
 
 ### Running the System
 
+#### Quick Start with Management Script
+
+The easiest way to get started is using the management script:
+
+```bash
+# 1. Delete all databases and start fresh
+./manage_tp.sh --delete-databases
+
+# 2. Start TimescaleDB
+./manage_tp.sh --start-database
+
+# 3. Collect data for all configured tickers
+./manage_tp.sh --collect-data
+```
+
+#### Manual Commands
+
 1. **Collect market data**
    ```bash
    # Collect historical data for configured symbols
@@ -118,37 +135,49 @@ See [README-Track.md](README-Track.md) for detailed progress tracking and implem
    ORDER BY records DESC;
    ```
 
+#### Management Script Commands
+
+The `manage_tp.sh` script provides convenient commands:
+
+- `--delete-databases` - Delete all databases and containers
+- `--start-database` - Start TimescaleDB
+- `--collect-data` - Collect data for all configured tickers
+- `--validate-config` - Validate configuration files
+- `--status` - Show system status
+- `--help` - Show help message
+
 ## 📁 Project Structure
 
 ```
 trading-platform/
-├── src/                     # Source code
-│   ├── core/               # Core functionality
-│   │   ├── config_loader.py    # Configuration management
-│   │   └── config_models.py    # Pydantic models
-│   ├── data_collectors/    # Data collection modules
-│   │   └── polygon/        # Polygon.io integration
+├── manage_tp.sh                # Main management script
+├── project-setup.toml          # Project configuration
+├── src/                        # Source code
+│   ├── core/                  # Core functionality
+│   │   ├── config_loader.py   # Configuration management
+│   │   └── config_models.py   # Pydantic models
+│   ├── data_collectors/       # Data collection modules
+│   │   └── polygon/           # Polygon.io integration
 │   │       ├── collect_data.py     # Main collection script
 │   │       ├── enhanced_collector.py # Data collector class
 │   │       ├── data_storage.py     # Database storage
 │   │       ├── collection_manager.py # Collection orchestration
 │   │       └── utils.py           # Utility functions
-│   ├── brokers/            # Broker integrations
-│   │   └── ibkr/           # Interactive Brokers
-│   └── strategies/         # Trading strategies
-├── config/                 # Configuration files
-│   ├── database.yaml       # Database configuration
-│   ├── polygon.yaml        # Polygon.io configuration
-│   ├── ibkr.yaml          # Interactive Brokers config
-│   └── main.yaml          # Main configuration
-├── scripts/                # Utility scripts
+│   ├── brokers/               # Broker integrations
+│   │   └── ibkr/              # Interactive Brokers
+│   └── strategies/            # Trading strategies
+├── config/                    # Configuration files
+│   ├── database.yaml          # Database configuration
+│   ├── polygon.yaml           # Polygon.io configuration
+│   ├── ibkr.yaml             # Interactive Brokers config
+│   └── main.yaml             # Main configuration
+├── scripts/                   # Utility scripts
 │   ├── collect_market_data.py # Main data collection CLI
 │   └── validate_config.py     # Configuration validation
-├── docker/                 # Docker configuration
-│   └── timescaledb/        # TimescaleDB setup
-├── docs/                   # Documentation
-├── tests/                  # Test suites
-└── project-setup.toml      # Project configuration
+├── docker/                    # Docker configuration
+│   └── timescaledb/           # TimescaleDB setup
+├── docs/                      # Documentation
+└── tests/                     # Test suites
 ```
 
 ## 🔧 Configuration
@@ -273,9 +302,10 @@ GROUP BY symbol;
 
 ## 📚 Documentation
 
+- [Quick Start Guide](docs/quick-start.md) - Get up and running in minutes
+- [Data Collection Guide](docs/data-collection.md) - Data collection workflows
 - [Database Schema](docs/database-schema.md) - Complete database schema documentation
 - [Configuration Guide](docs/configuration.md) - Detailed configuration setup
-- [Data Collection](docs/data-collection.md) - Data collection workflows
 - [API Reference](docs/api-reference.md) - API documentation
 - [Troubleshooting](docs/troubleshooting.md) - Common issues and solutions
 

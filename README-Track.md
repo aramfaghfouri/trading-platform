@@ -365,6 +365,7 @@ This document tracks the progress of implementing the live trading platform with
 - ✅ Clean module structure with proper separation of concerns
 - ✅ Polygon-specific code organized under `src/data_collectors/polygon/`
 - ✅ Main CLI entry point for data collection
+- ✅ Management script (`manage_tp.sh`) for easy database and data collection operations
 - ✅ Comprehensive documentation and README updates
 
 **Database:**

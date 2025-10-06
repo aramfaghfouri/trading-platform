@@ -126,7 +126,7 @@ def agg_to_list(agg, ticker):
 
 def load_project_config():
     """Load configuration from project-setup.toml"""
-    config_path = Path(__file__).parent.parent / "project-setup.toml"
+    config_path = Path(__file__).parent.parent.parent.parent / "project-setup.toml"
     with open(config_path, 'r') as f:
         return toml.load(f)
 

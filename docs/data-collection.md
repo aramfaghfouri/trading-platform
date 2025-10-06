@@ -29,6 +29,17 @@ rate_limit_delay = 13
 
 ### 3. Run Data Collection
 
+#### Using Management Script (Recommended)
+
+```bash
+# Complete workflow: delete, start, collect
+./manage_tp.sh --delete-databases
+./manage_tp.sh --start-database
+./manage_tp.sh --collect-data
+```
+
+#### Manual Commands
+
 ```bash
 # Collect data for all configured symbols
 python scripts/collect_market_data.py
@@ -218,12 +229,30 @@ class PolygonDataStorage:
 
 ## 🔄 Data Collection Workflow
 
+### Management Script Workflow
+
+1. **Database Cleanup**: `./manage_tp.sh --delete-databases` removes all containers and volumes
+2. **Database Startup**: `./manage_tp.sh --start-database` starts TimescaleDB and waits for readiness
+3. **Data Collection**: `./manage_tp.sh --collect-data` reads configuration and collects data
+4. **Progress Monitoring**: Real-time progress updates and error handling
+
+### Manual Workflow
+
 1. **Configuration Loading**: Read settings from YAML and TOML files
 2. **API Authentication**: Authenticate with Polygon.io API
 3. **Data Collection**: Fetch historical data for each symbol
 4. **Data Validation**: Validate data quality and detect outliers
 5. **Data Storage**: Store validated data in TimescaleDB
 6. **Progress Tracking**: Log collection progress and statistics
+
+### Management Script Commands
+
+- `--delete-databases` - Clean slate: removes all containers and volumes
+- `--start-database` - Start TimescaleDB with health checks
+- `--collect-data` - Collect data for all configured tickers
+- `--validate-config` - Validate configuration files
+- `--status` - Show database status and data summary
+- `--help` - Show all available commands
 
 ## 📈 Performance Optimization
 
