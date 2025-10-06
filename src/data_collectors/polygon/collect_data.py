@@ -130,10 +130,58 @@ def load_project_config():
     with open(config_path, 'r') as f:
         return toml.load(f)
 
+async def create_ticker_tables(symbols: list):
+    """Pre-create all ticker tables before data collection"""
+    print("🏗️  Creating ticker tables...")
+    print("=" * 50)
+    
+    storage = PolygonDataStorage()
+    created_tables = []
+    failed_tables = []
+    
+    for symbol in symbols:
+        try:
+            # Create table for this symbol using the database function
+            async with storage.pool.acquire() as conn:
+                result = await conn.fetchval(
+                    "SELECT create_ticker_table($1, $2, $3)",
+                    symbol, 'ohlcv', '1m'
+                )
+                
+                if result:
+                    created_tables.append(symbol)
+                    print(f"   ✅ Created table for {symbol}")
+                else:
+                    # Table might already exist, check if it's in registry
+                    table_name = await conn.fetchval(
+                        "SELECT get_ticker_table_name($1, $2, $3)",
+                        symbol, 'ohlcv', '1m'
+                    )
+                    if table_name:
+                        print(f"   ℹ️  Table for {symbol} already exists: {table_name}")
+                    else:
+                        failed_tables.append(symbol)
+                        print(f"   ❌ Failed to create table for {symbol}")
+                        
+        except Exception as e:
+            failed_tables.append(symbol)
+            print(f"   ❌ Failed to create table for {symbol}: {e}")
+    
+    print(f"\n📊 Table creation summary:")
+    print(f"   ✅ Successfully created: {len(created_tables)} tables")
+    print(f"   ℹ️  Already existed: {len(symbols) - len(created_tables) - len(failed_tables)} tables")
+    print(f"   ❌ Failed: {len(failed_tables)} tables")
+    
+    if failed_tables:
+        print(f"   Failed symbols: {', '.join(failed_tables)}")
+    
+    return len(failed_tables) == 0
+
+
 async def collect_and_store_data_working_approach():
     """Collect data using the working approach and store in TimescaleDB"""
-    print("🚀 Collecting Data Using Working Approach")
-    print("=" * 50)
+    print("🚀 Enhanced Data Collection with Pre-created Tables")
+    print("=" * 60)
     
     # Load configuration from project-setup.toml
     project_config = load_project_config()
@@ -154,33 +202,77 @@ async def collect_and_store_data_working_approach():
     print(f"📈 Symbols: {', '.join(symbols)}")
     print(f"⏱️  Time interval: {time_interval}")
     
-    # Generate weekday segments (avoid weekends)
+    # STEP 1: Pre-create all ticker tables
+    print(f"\n🏗️  STEP 1: Creating tables for all tickers...")
+    table_creation_success = await create_ticker_tables(symbols)
+    
+    if not table_creation_success:
+        print("❌ Failed to create some tables. Continuing with available tables...")
+    
+    print(f"✅ Table setup complete! Proceeding with data collection...")
+    
+    # STEP 2: Initialize storage
+    print(f"\n📡 STEP 2: Initializing data collection...")
+    storage = PolygonDataStorage()
+    
+    # Generate weekday segments
     weekday_segments = segment_same_week_days(start, end)
-    print(f"📊 Weekday segments: {len(weekday_segments)}")
+    print(f"📊 Generated {len(weekday_segments)} weekday segments")
     
     # Generate symbol-date pairs
     symbol_date_pairs = [(symbol, date) for symbol in symbols for date in weekday_segments]
-    print(f"📋 Total symbol-date pairs: {len(symbol_date_pairs)}")
+    print(f"🔄 Total collection tasks: {len(symbol_date_pairs)}")
     
-    # Collect data
-    all_data = []
+    # STEP 3: Collect and store data
+    print(f"\n📈 STEP 3: Collecting data for all symbols...")
     successful_collections = 0
+    failed_collections = 0
+    total_records = 0
     
-    print(f"\n🔄 Starting data collection...")
     ts = time.time()
     
-    for symbol_date_pair in tqdm(symbol_date_pairs, desc="Collecting data"):
-        symbol, date = symbol_date_pair
-        
-        # Collect data using working approach
-        aggs = get_aggs_for_symbol_and_date(symbol_date_pair, time_interval, api_key)
-        
-        if aggs:
-            # Convert to list format
+    for i, (ticker, date_range) in enumerate(tqdm(symbol_date_pairs, desc="Collecting data")):
+        try:
+            start_date, end_date = date_range
+            
+            print(f"\n📈 Processing {ticker} for {start_date} to {end_date}")
+            
+            # Get aggregates for this symbol and date range
+            aggs = get_aggs_for_symbol_and_date((ticker, date_range), time_interval, api_key)
+            
+            if not aggs:
+                print(f"   ⚠️  No data found for {ticker} on {start_date}")
+                continue
+            
+            # Convert to storage format
+            bars = []
             for agg in aggs:
-                data_row = agg_to_list(agg, symbol)
-                all_data.append(data_row)
-            successful_collections += 1
+                bar = {
+                    't': int(agg['t']),  # timestamp in milliseconds
+                    'o': float(agg['o']),
+                    'h': float(agg['h']),
+                    'l': float(agg['l']),
+                    'c': float(agg['c']),
+                    'v': int(agg['v']),
+                    'vw': float(agg['vw']) if agg.get('vw') else None,
+                    'n': int(agg['n']) if agg.get('n') else None
+                }
+                bars.append(bar)
+            
+            # Store the data (tables already exist, so this should be fast)
+            result = await storage.store_ohlcv_data(ticker, bars)
+            if result.success:
+                print(f"   ✅ Stored {result.records_inserted} records for {ticker}")
+                successful_collections += 1
+                total_records += result.records_inserted
+            else:
+                print(f"   ❌ Failed to store data for {ticker}: {result.error}")
+                failed_collections += 1
+                
+        except Exception as e:
+            print(f"   ❌ Error processing {ticker} for {date_range}: {e}")
+            failed_collections += 1
+            continue
         
         # Rate limiting from project-setup.toml
         time.sleep(rate_limit_delay)
@@ -188,31 +280,15 @@ async def collect_and_store_data_working_approach():
     te = time.time()
     elapsed_time = te - ts
     
-    print(f"\n📊 Collection Results:")
-    print(f"   Total pairs processed: {len(symbol_date_pairs)}")
-    print(f"   Successful collections: {successful_collections}")
-    print(f"   Total data points: {len(all_data)}")
-    print(f"   Elapsed time: {elapsed_time:.2f} seconds")
+    print(f"\n🎉 Data collection completed!")
+    print(f"📊 Collection summary:")
+    print(f"   ✅ Successful: {successful_collections} collections")
+    print(f"   ❌ Failed: {failed_collections} collections")
+    print(f"   📈 Total records stored: {total_records}")
+    print(f"   ⏱️  Elapsed time: {elapsed_time:.2f} seconds")
+    print(f"   📋 Total processed: {len(symbol_date_pairs)} symbol-date pairs")
     
-    if all_data:
-        # Convert to DataFrame
-        cols = ["ticker", "timestamp", "unix_t", "open", "high", "low", "close", "volume", "vwap", "transactions", "otc"]
-        df = pd.DataFrame(data=all_data, columns=cols)
-        df.drop_duplicates(inplace=True)
-        df = df.sort_values(by=["ticker", "unix_t"]).reset_index(drop=True)
-        
-        print(f"   DataFrame shape: {df.shape}")
-        print(f"   Unique tickers: {df['ticker'].nunique()}")
-        print(f"   Date range: {df['timestamp'].min()} to {df['timestamp'].max()}")
-        
-        # Store in TimescaleDB
-        print(f"\n💾 Storing data in TimescaleDB...")
-        await store_dataframe_in_timescaledb(df)
-        
-        return True
-    else:
-        print("❌ No data collected")
-        return False
+    return successful_collections > 0
 
 
 async def store_dataframe_in_timescaledb(df):

@@ -52,15 +52,15 @@ CREATE OR REPLACE FUNCTION create_ticker_table(
     p_timeframe VARCHAR(10) DEFAULT '1m'
 ) RETURNS BOOLEAN AS $$
 DECLARE
-    table_name VARCHAR(50);
+    v_table_name VARCHAR(50);
     sql_statement TEXT;
 BEGIN
     -- Generate table name
-    table_name := p_data_type || '_' || LOWER(p_symbol) || '_' || p_timeframe;
+    v_table_name := p_data_type || '_' || LOWER(p_symbol) || '_' || p_timeframe;
     
     -- Check if table already exists
     IF EXISTS (SELECT 1 FROM information_schema.tables 
-               WHERE table_name = table_name) THEN
+               WHERE table_name = v_table_name) THEN
         RETURN FALSE;
     END IF;
     
@@ -80,7 +80,7 @@ BEGIN
             data_source VARCHAR(20) DEFAULT ''polygon'',
             created_at TIMESTAMPTZ DEFAULT NOW(),
             updated_at TIMESTAMPTZ DEFAULT NOW()
-        )', table_name);
+        )', v_table_name);
     
     EXECUTE sql_statement;
     
@@ -88,26 +88,26 @@ BEGIN
     EXECUTE format('
         SELECT create_hypertable(''%I'', ''timestamp'',
             chunk_time_interval => INTERVAL ''1 day'',
-            if_not_exists => TRUE)', table_name);
+            if_not_exists => TRUE)', v_table_name);
     
     -- Add compression policy
     EXECUTE format('
         ALTER TABLE %I SET (timescaledb.compress, 
-            timescaledb.compress_segmentby = ''timestamp'')', table_name);
+            timescaledb.compress_segmentby = ''timestamp'')', v_table_name);
     
     -- Add compression policy
     EXECUTE format('
         SELECT add_compression_policy(''%I'', INTERVAL ''7 days'', 
-            if_not_exists => TRUE)', table_name);
+            if_not_exists => TRUE)', v_table_name);
     
     -- Add retention policy
     EXECUTE format('
         SELECT add_retention_policy(''%I'', INTERVAL ''1 year'', 
-            if_not_exists => TRUE)', table_name);
+            if_not_exists => TRUE)', v_table_name);
     
     -- Register in ticker registry
     INSERT INTO ticker_registry (symbol, table_name, data_type, timeframe)
-    VALUES (p_symbol, table_name, p_data_type, p_timeframe);
+    VALUES (p_symbol, v_table_name, p_data_type, p_timeframe);
     
     RETURN TRUE;
 END;
