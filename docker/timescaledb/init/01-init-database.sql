@@ -4,31 +4,162 @@
 -- Enable TimescaleDB extension
 CREATE EXTENSION IF NOT EXISTS timescaledb;
 
--- Create the main OHLCV data table
-CREATE TABLE IF NOT EXISTS ohlcv_data (
-    symbol VARCHAR(10) NOT NULL,
-    timestamp TIMESTAMPTZ NOT NULL,
-    open DECIMAL(10,4),
-    high DECIMAL(10,4),
-    low DECIMAL(10,4),
-    close DECIMAL(10,4),
-    volume BIGINT,
-    vwap DECIMAL(10,4),
-    transactions INTEGER,
-    PRIMARY KEY (symbol, timestamp)
+-- Create ticker registry table (central registry for all tickers and their table names)
+CREATE TABLE IF NOT EXISTS ticker_registry (
+    symbol VARCHAR(10) PRIMARY KEY,
+    table_name VARCHAR(50) NOT NULL,
+    data_type VARCHAR(20) NOT NULL DEFAULT 'ohlcv', -- 'ohlcv', 'trades', 'quotes'
+    timeframe VARCHAR(10) NOT NULL DEFAULT '1m', -- '1m', '5m', '1d'
+    is_active BOOLEAN DEFAULT TRUE,
+    created_at TIMESTAMPTZ DEFAULT NOW(),
+    last_updated TIMESTAMPTZ DEFAULT NOW(),
+    
+    -- Ticker-specific metadata
+    company_name VARCHAR(255),
+    sector VARCHAR(100),
+    market_cap BIGINT,
+    currency VARCHAR(3) DEFAULT 'USD',
+    
+    -- Data collection settings
+    collection_enabled BOOLEAN DEFAULT TRUE,
+    retention_days INTEGER DEFAULT 365,
+    compression_enabled BOOLEAN DEFAULT TRUE
 );
 
--- Convert to hypertable for time-series optimization
-SELECT create_hypertable('ohlcv_data', 'timestamp', 
-    chunk_time_interval => INTERVAL '1 day',
-    if_not_exists => TRUE);
+-- Create index for quick lookups
+CREATE INDEX IF NOT EXISTS idx_ticker_registry_active 
+    ON ticker_registry (is_active, data_type, timeframe);
 
--- Create indexes for common query patterns
-CREATE INDEX IF NOT EXISTS idx_ohlcv_symbol_time 
-    ON ohlcv_data (symbol, timestamp DESC);
+-- Create function to get table name for a ticker
+CREATE OR REPLACE FUNCTION get_ticker_table_name(
+    p_symbol VARCHAR(10),
+    p_data_type VARCHAR(20) DEFAULT 'ohlcv',
+    p_timeframe VARCHAR(10) DEFAULT '1m'
+) RETURNS VARCHAR(50) AS $$
+BEGIN
+    RETURN (SELECT table_name 
+            FROM ticker_registry 
+            WHERE symbol = p_symbol 
+            AND data_type = p_data_type 
+            AND timeframe = p_timeframe);
+END;
+$$ LANGUAGE plpgsql;
 
-CREATE INDEX IF NOT EXISTS idx_ohlcv_timestamp 
-    ON ohlcv_data (timestamp DESC);
+-- Create function to create tables for new tickers
+CREATE OR REPLACE FUNCTION create_ticker_table(
+    p_symbol VARCHAR(10),
+    p_data_type VARCHAR(20) DEFAULT 'ohlcv',
+    p_timeframe VARCHAR(10) DEFAULT '1m'
+) RETURNS BOOLEAN AS $$
+DECLARE
+    table_name VARCHAR(50);
+    sql_statement TEXT;
+BEGIN
+    -- Generate table name
+    table_name := p_data_type || '_' || LOWER(p_symbol) || '_' || p_timeframe;
+    
+    -- Check if table already exists
+    IF EXISTS (SELECT 1 FROM information_schema.tables 
+               WHERE table_name = table_name) THEN
+        RETURN FALSE;
+    END IF;
+    
+    -- Create the table
+    sql_statement := format('
+        CREATE TABLE %I (
+            timestamp TIMESTAMPTZ NOT NULL PRIMARY KEY,
+            open DECIMAL(10,4) NOT NULL,
+            high DECIMAL(10,4) NOT NULL,
+            low DECIMAL(10,4) NOT NULL,
+            close DECIMAL(10,4) NOT NULL,
+            volume BIGINT NOT NULL DEFAULT 0,
+            vwap DECIMAL(10,4),
+            transactions INTEGER,
+            trade_count INTEGER,
+            is_complete BOOLEAN DEFAULT TRUE,
+            data_source VARCHAR(20) DEFAULT ''polygon'',
+            created_at TIMESTAMPTZ DEFAULT NOW(),
+            updated_at TIMESTAMPTZ DEFAULT NOW()
+        )', table_name);
+    
+    EXECUTE sql_statement;
+    
+    -- Convert to hypertable
+    EXECUTE format('
+        SELECT create_hypertable(''%I'', ''timestamp'',
+            chunk_time_interval => INTERVAL ''1 day'',
+            if_not_exists => TRUE)', table_name);
+    
+    -- Add compression policy
+    EXECUTE format('
+        ALTER TABLE %I SET (timescaledb.compress, 
+            timescaledb.compress_segmentby = ''timestamp'')', table_name);
+    
+    -- Add compression policy
+    EXECUTE format('
+        SELECT add_compression_policy(''%I'', INTERVAL ''7 days'', 
+            if_not_exists => TRUE)', table_name);
+    
+    -- Add retention policy
+    EXECUTE format('
+        SELECT add_retention_policy(''%I'', INTERVAL ''1 year'', 
+            if_not_exists => TRUE)', table_name);
+    
+    -- Register in ticker registry
+    INSERT INTO ticker_registry (symbol, table_name, data_type, timeframe)
+    VALUES (p_symbol, table_name, p_data_type, p_timeframe);
+    
+    RETURN TRUE;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Create function to create continuous aggregates for each ticker
+CREATE OR REPLACE FUNCTION create_ticker_continuous_aggregates(
+    p_symbol VARCHAR(10),
+    p_timeframe VARCHAR(10) DEFAULT '1m'
+) RETURNS VOID AS $$
+DECLARE
+    source_table VARCHAR(50);
+    agg_5m_table VARCHAR(50);
+    agg_1h_table VARCHAR(50);
+BEGIN
+    source_table := 'ohlcv_' || LOWER(p_symbol) || '_' || p_timeframe;
+    agg_5m_table := 'cagg_' || LOWER(p_symbol) || '_5m';
+    agg_1h_table := 'cagg_' || LOWER(p_symbol) || '_1h';
+    
+    -- 5-minute aggregate
+    EXECUTE format('
+        CREATE MATERIALIZED VIEW %I
+        WITH (timescaledb.continuous) AS
+        SELECT
+            time_bucket(''5 minutes'', timestamp) AS bucket,
+            first(open, timestamp) AS open,
+            max(high) AS high,
+            min(low) AS low,
+            last(close, timestamp) AS close,
+            sum(volume) AS volume,
+            (sum(close * volume) / NULLIF(sum(volume), 0)) AS vwap,
+            sum(transactions) AS transactions
+        FROM %I
+        GROUP BY bucket', agg_5m_table, source_table);
+    
+    -- 1-hour aggregate
+    EXECUTE format('
+        CREATE MATERIALIZED VIEW %I
+        WITH (timescaledb.continuous) AS
+        SELECT
+            time_bucket(''1 hour'', timestamp) AS bucket,
+            first(open, timestamp) AS open,
+            max(high) AS high,
+            min(low) AS low,
+            last(close, timestamp) AS close,
+            sum(volume) AS volume,
+            (sum(close * volume) / NULLIF(sum(volume), 0)) AS vwap,
+            sum(transactions) AS transactions
+        FROM %I
+        GROUP BY bucket', agg_1h_table, source_table);
+END;
+$$ LANGUAGE plpgsql;
 
 -- Create experiments table for tracking strategy results
 CREATE TABLE IF NOT EXISTS experiments (
@@ -82,66 +213,42 @@ CREATE TABLE IF NOT EXISTS positions (
     UNIQUE(symbol, strategy_name)
 );
 
--- Create continuous aggregate for 1-minute bars from raw data
-CREATE MATERIALIZED VIEW IF NOT EXISTS cagg_bars_1m
-WITH (timescaledb.continuous) AS
-SELECT
-    symbol,
-    time_bucket('1 minute', timestamp) AS bucket,
-    first(open, timestamp) AS open,
-    max(high) AS high,
-    min(low) AS low,
-    last(close, timestamp) AS close,
-    sum(volume) AS volume,
-    (sum(close * volume) / NULLIF(sum(volume), 0)) AS vwap,
-    sum(transactions) AS transactions
-FROM ohlcv_data
-GROUP BY symbol, bucket;
-
--- Enable real-time aggregation (include newest rows not yet materialized)
-ALTER MATERIALIZED VIEW cagg_bars_1m SET (timescaledb.materialized_only = false);
-
--- Create refresh policy for 1-minute bars
-SELECT add_continuous_aggregate_policy('cagg_bars_1m',
-    start_offset => INTERVAL '2 hours',
-    end_offset => INTERVAL '1 minute',
-    schedule_interval => INTERVAL '30 seconds',
-    if_not_exists => TRUE);
-
--- Create continuous aggregate for 5-minute bars
-CREATE MATERIALIZED VIEW IF NOT EXISTS cagg_bars_5m
-WITH (timescaledb.continuous) AS
-SELECT
-    symbol,
-    time_bucket('5 minutes', timestamp) AS bucket,
-    first(open, timestamp) AS open,
-    max(high) AS high,
-    min(low) AS low,
-    last(close, timestamp) AS close,
-    sum(volume) AS volume,
-    (sum(close * volume) / NULLIF(sum(volume), 0)) AS vwap,
-    sum(transactions) AS transactions
-FROM ohlcv_data
-GROUP BY symbol, bucket;
-
--- Enable real-time aggregation for 5-minute bars
-ALTER MATERIALIZED VIEW cagg_bars_5m SET (timescaledb.materialized_only = false);
-
--- Create refresh policy for 5-minute bars
-SELECT add_continuous_aggregate_policy('cagg_bars_5m',
-    start_offset => INTERVAL '6 hours',
-    end_offset => INTERVAL '5 minutes',
-    schedule_interval => INTERVAL '1 minute',
-    if_not_exists => TRUE);
-
--- Set up compression for historical data (compress data older than 7 days)
-ALTER TABLE ohlcv_data SET (timescaledb.compress, timescaledb.compress_segmentby = 'symbol');
-
--- Add compression policy
-SELECT add_compression_policy('ohlcv_data', INTERVAL '7 days', if_not_exists => TRUE);
-
--- Set up data retention (keep data for 1 year)
-SELECT add_retention_policy('ohlcv_data', INTERVAL '1 year', if_not_exists => TRUE);
+-- Create unified view for cross-symbol analytics (optional)
+CREATE OR REPLACE VIEW unified_ohlcv AS
+SELECT 
+    tr.symbol,
+    o.timestamp,
+    o.open,
+    o.high,
+    o.low,
+    o.close,
+    o.volume,
+    o.vwap,
+    o.transactions,
+    o.trade_count,
+    o.is_complete,
+    o.data_source,
+    o.created_at,
+    o.updated_at
+FROM ticker_registry tr
+LEFT JOIN LATERAL (
+    -- This will be populated dynamically as ticker tables are created
+    SELECT NULL::TIMESTAMPTZ as timestamp, 
+           NULL::DECIMAL(10,4) as open,
+           NULL::DECIMAL(10,4) as high,
+           NULL::DECIMAL(10,4) as low,
+           NULL::DECIMAL(10,4) as close,
+           NULL::BIGINT as volume,
+           NULL::DECIMAL(10,4) as vwap,
+           NULL::INTEGER as transactions,
+           NULL::INTEGER as trade_count,
+           NULL::BOOLEAN as is_complete,
+           NULL::VARCHAR(20) as data_source,
+           NULL::TIMESTAMPTZ as created_at,
+           NULL::TIMESTAMPTZ as updated_at
+    WHERE FALSE
+) o ON true
+WHERE tr.is_active = TRUE;
 
 -- Create a function to get latest data for a symbol
 CREATE OR REPLACE FUNCTION get_latest_data(symbol_name VARCHAR(10), lookback_hours INTEGER DEFAULT 24)
@@ -154,20 +261,32 @@ RETURNS TABLE (
     volume BIGINT,
     vwap DECIMAL(10,4)
 ) AS $$
+DECLARE
+    table_name VARCHAR(50);
+    sql_query TEXT;
 BEGIN
-    RETURN QUERY
-    SELECT 
-        o.timestamp,
-        o.open,
-        o.high,
-        o.low,
-        o.close,
-        o.volume,
-        o.vwap
-    FROM ohlcv_data o
-    WHERE o.symbol = symbol_name
-    AND o.timestamp >= NOW() - INTERVAL '1 hour' * lookback_hours
-    ORDER BY o.timestamp DESC;
+    -- Get the table name for this symbol
+    table_name := get_ticker_table_name(symbol_name, 'ohlcv', '1m');
+    
+    IF table_name IS NULL THEN
+        RETURN;
+    END IF;
+    
+    -- Build dynamic query
+    sql_query := format('
+        SELECT 
+            timestamp,
+            open,
+            high,
+            low,
+            close,
+            volume,
+            vwap
+        FROM %I
+        WHERE timestamp >= NOW() - INTERVAL ''1 hour'' * %s
+        ORDER BY timestamp DESC', table_name, lookback_hours);
+    
+    RETURN QUERY EXECUTE sql_query;
 END;
 $$ LANGUAGE plpgsql;
 
@@ -176,9 +295,10 @@ CREATE OR REPLACE FUNCTION get_symbols()
 RETURNS TABLE (symbol VARCHAR(10)) AS $$
 BEGIN
     RETURN QUERY
-    SELECT DISTINCT o.symbol
-    FROM ohlcv_data o
-    ORDER BY o.symbol;
+    SELECT tr.symbol
+    FROM ticker_registry tr
+    WHERE tr.is_active = TRUE
+    ORDER BY tr.symbol;
 END;
 $$ LANGUAGE plpgsql;
 

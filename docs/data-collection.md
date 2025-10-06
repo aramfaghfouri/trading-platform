@@ -106,21 +106,39 @@ Main configuration files in `config/`:
 
 ### Database Schema
 
+The platform now uses **ticker-specific tables** for better performance and isolation:
+
 ```sql
--- Main OHLCV data table
-CREATE TABLE ohlcv_data (
-    symbol VARCHAR(10) NOT NULL,
-    timestamp TIMESTAMPTZ NOT NULL,
-    open DECIMAL(10,4),
-    high DECIMAL(10,4),
-    low DECIMAL(10,4),
-    close DECIMAL(10,4),
-    volume BIGINT,
+-- Ticker registry (central registry for all tickers)
+CREATE TABLE ticker_registry (
+    symbol VARCHAR(10) PRIMARY KEY,
+    table_name VARCHAR(50) NOT NULL,
+    data_type VARCHAR(20) NOT NULL DEFAULT 'ohlcv',
+    timeframe VARCHAR(10) NOT NULL DEFAULT '1m',
+    is_active BOOLEAN DEFAULT TRUE,
+    -- ... additional metadata fields
+);
+
+-- Individual ticker tables (created dynamically)
+-- Example: ohlcv_aapl_1m, ohlcv_goog_1m, etc.
+CREATE TABLE ohlcv_{ticker}_{timeframe} (
+    timestamp TIMESTAMPTZ PRIMARY KEY,
+    open DECIMAL(10,4) NOT NULL,
+    high DECIMAL(10,4) NOT NULL,
+    low DECIMAL(10,4) NOT NULL,
+    close DECIMAL(10,4) NOT NULL,
+    volume BIGINT NOT NULL DEFAULT 0,
     vwap DECIMAL(10,4),
     transactions INTEGER,
-    PRIMARY KEY (symbol, timestamp)
+    -- ... additional fields
 );
 ```
+
+**Benefits of Ticker-Specific Tables:**
+- ⚡ **Faster queries** for individual tickers
+- 🔒 **Data isolation** - one ticker's issues don't affect others
+- 📈 **Better scalability** as you add more tickers
+- ⚙️ **Flexible configuration** per ticker
 
 ## 🛠️ Advanced Usage
 
@@ -157,16 +175,23 @@ is_valid, errors = validator.validate_bar_data(data)
 ### Check Data Summary
 
 ```sql
--- View data summary by symbol
+-- View data summary by symbol (using ticker registry)
 SELECT 
-    symbol, 
-    COUNT(*) as records,
-    MIN(timestamp) as earliest,
-    MAX(timestamp) as latest,
-    AVG(volume) as avg_volume
-FROM ohlcv_data 
-GROUP BY symbol 
+    tr.symbol,
+    tr.table_name,
+    tr.is_active,
+    COUNT(o.timestamp) as records,
+    MIN(o.timestamp) as earliest,
+    MAX(o.timestamp) as latest,
+    AVG(o.volume) as avg_volume
+FROM ticker_registry tr
+LEFT JOIN ohlcv_aapl_1m o ON tr.symbol = 'AAPL'  -- Example for AAPL
+WHERE tr.is_active = TRUE
+GROUP BY tr.symbol, tr.table_name, tr.is_active
 ORDER BY records DESC;
+
+-- Or use the built-in function
+SELECT * FROM get_symbols();
 ```
 
 ### Validate Data Quality
@@ -175,6 +200,38 @@ ORDER BY records DESC;
 # Run data quality validation
 python scripts/validate_config.py
 ```
+
+## 🔄 Migration from Single Table
+
+If you have existing data in the old single `ohlcv_data` table, you can migrate to the new ticker-specific structure:
+
+### Migration Script
+
+```bash
+# Check what would be migrated (dry run)
+python scripts/migrate_to_ticker_tables.py --dry-run
+
+# Migrate with backup of old data
+python scripts/migrate_to_ticker_tables.py --backup
+
+# Migrate without backup
+python scripts/migrate_to_ticker_tables.py
+```
+
+### Migration Process
+
+1. **Backup Creation**: Optional backup of the old `ohlcv_data` table
+2. **Symbol Discovery**: Automatically finds all unique symbols in the old table
+3. **Table Creation**: Creates individual tables for each symbol using the new schema
+4. **Data Migration**: Moves all data from the old table to the new ticker-specific tables
+5. **Registry Update**: Updates the ticker registry with all migrated symbols
+
+### Post-Migration
+
+After migration, you can:
+- Remove the old `ohlcv_data` table (if backup was created)
+- Use the new ticker-specific tables for better performance
+- Leverage the ticker registry for metadata management
 
 ## 🚨 Troubleshooting
 

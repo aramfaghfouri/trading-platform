@@ -12,38 +12,106 @@
 ## Table Naming Conventions
 - **Snake_case** for all table names
 - **Descriptive names** that clearly indicate purpose
+- **Ticker-specific tables**: `{data_type}_{ticker}_{timeframe}` (e.g., `ohlcv_aapl_1m`)
 - **Consistent prefixes** for related tables:
   - `cagg_*` for continuous aggregates
   - Standard names for core tables
 
 ## Core Tables
 
-### 1. ohlcv_data (Main Time-Series Table)
-**Purpose**: Stores OHLCV (Open, High, Low, Close, Volume) data for all symbols
+### 1. ticker_registry (Central Registry)
+**Purpose**: Central registry for all tickers and their table names
 
 | Column | Type | Constraints | Description |
 |--------|------|-------------|-------------|
-| symbol | VARCHAR(10) | NOT NULL, PK | Stock symbol (e.g., 'AAPL') |
-| timestamp | TIMESTAMPTZ | NOT NULL, PK | Data timestamp with timezone |
-| open | DECIMAL(10,4) | | Opening price |
-| high | DECIMAL(10,4) | | Highest price |
-| low | DECIMAL(10,4) | | Lowest price |
-| close | DECIMAL(10,4) | | Closing price |
-| volume | BIGINT | | Trading volume |
-| vwap | DECIMAL(10,4) | | Volume Weighted Average Price |
-| transactions | INTEGER | | Number of transactions |
+| symbol | VARCHAR(10) | PRIMARY KEY | Stock symbol (e.g., 'AAPL') |
+| table_name | VARCHAR(50) | NOT NULL | Name of the ticker's data table |
+| data_type | VARCHAR(20) | NOT NULL | Type of data ('ohlcv', 'trades', 'quotes') |
+| timeframe | VARCHAR(10) | NOT NULL | Data timeframe ('1m', '5m', '1d') |
+| is_active | BOOLEAN | DEFAULT TRUE | Whether ticker is active |
+| created_at | TIMESTAMPTZ | DEFAULT NOW() | Registry entry creation time |
+| last_updated | TIMESTAMPTZ | DEFAULT NOW() | Last update time |
+| company_name | VARCHAR(255) | | Company name |
+| sector | VARCHAR(100) | | Market sector |
+| market_cap | BIGINT | | Market capitalization |
+| currency | VARCHAR(3) | DEFAULT 'USD' | Currency code |
+| collection_enabled | BOOLEAN | DEFAULT TRUE | Whether data collection is enabled |
+| retention_days | INTEGER | DEFAULT 365 | Data retention period |
+| compression_enabled | BOOLEAN | DEFAULT TRUE | Whether compression is enabled |
 
 **Indexes**:
-- Primary Key: `(symbol, timestamp)`
-- `idx_ohlcv_symbol_time`: `(symbol, timestamp DESC)`
-- `idx_ohlcv_timestamp`: `(timestamp DESC)`
+- Primary Key: `symbol`
+- `idx_ticker_registry_active`: `(is_active, data_type, timeframe)`
+
+### 2. ohlcv_{ticker}_{timeframe} (Ticker-Specific Tables)
+**Purpose**: Stores OHLCV data for individual tickers
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| timestamp | TIMESTAMPTZ | PRIMARY KEY | Data timestamp with timezone |
+| open | DECIMAL(10,4) | NOT NULL | Opening price |
+| high | DECIMAL(10,4) | NOT NULL | Highest price |
+| low | DECIMAL(10,4) | NOT NULL | Lowest price |
+| close | DECIMAL(10,4) | NOT NULL | Closing price |
+| volume | BIGINT | NOT NULL DEFAULT 0 | Trading volume |
+| vwap | DECIMAL(10,4) | | Volume Weighted Average Price |
+| transactions | INTEGER | | Number of transactions |
+| trade_count | INTEGER | | Number of trades |
+| is_complete | BOOLEAN | DEFAULT TRUE | Whether bar is complete |
+| data_source | VARCHAR(20) | DEFAULT 'polygon' | Data source |
+| created_at | TIMESTAMPTZ | DEFAULT NOW() | Record creation time |
+| updated_at | TIMESTAMPTZ | DEFAULT NOW() | Last update time |
+
+**Indexes**:
+- Primary Key: `timestamp`
+- Automatic TimescaleDB indexes for time-series optimization
 
 **TimescaleDB Features**:
 - Hypertable with 1-day chunk intervals
 - Compression enabled (7-day policy)
 - Retention policy: 1 year
+- Per-ticker continuous aggregates
 
-### 2. experiments
+## Architecture Benefits
+
+### Ticker-Specific Tables
+- **Performance**: Smaller tables = faster queries for individual tickers
+- **Isolation**: One ticker's data issues don't affect others
+- **Flexibility**: Ticker-specific configurations and retention policies
+- **Scalability**: Easy to add new tickers without schema changes
+
+### Dynamic Table Management
+- **Automatic Creation**: Tables are created on-demand when data is first collected
+- **Registry-Based**: Central registry tracks all tickers and their table names
+- **Function-Based Access**: Database functions handle table name resolution
+
+## Database Functions
+
+### Table Management
+- `create_ticker_table(symbol, data_type, timeframe)`: Creates a new ticker table
+- `get_ticker_table_name(symbol, data_type, timeframe)`: Gets table name for a ticker
+- `create_ticker_continuous_aggregates(symbol, timeframe)`: Creates continuous aggregates
+
+### Data Access
+- `get_latest_data(symbol, lookback_hours)`: Gets latest data for a symbol
+- `get_symbols()`: Gets list of all active symbols
+
+## Migration from Single Table
+
+If you have existing data in the old `ohlcv_data` table, use the migration script:
+
+```bash
+# Dry run to see what would be migrated
+python scripts/migrate_to_ticker_tables.py --dry-run
+
+# Migrate with backup
+python scripts/migrate_to_ticker_tables.py --backup
+
+# Migrate without backup
+python scripts/migrate_to_ticker_tables.py
+```
+
+### 3. experiments
 **Purpose**: Tracks strategy experiment results and performance metrics
 
 | Column | Type | Constraints | Description |
@@ -56,7 +124,7 @@
 | metrics | JSONB | | Performance metrics as JSON |
 | created_at | TIMESTAMPTZ | DEFAULT NOW() | Record creation time |
 
-### 3. strategies
+### 4. strategies
 **Purpose**: Stores strategy definitions and metadata
 
 | Column | Type | Constraints | Description |
@@ -70,7 +138,7 @@
 | created_at | TIMESTAMPTZ | DEFAULT NOW() | Creation timestamp |
 | updated_at | TIMESTAMPTZ | DEFAULT NOW() | Last update timestamp |
 
-### 4. orders
+### 5. orders
 **Purpose**: Tracks all trading orders
 
 | Column | Type | Constraints | Description |
@@ -88,7 +156,7 @@
 | filled_at | TIMESTAMPTZ | | When order was filled |
 | cancelled_at | TIMESTAMPTZ | | When order was cancelled |
 
-### 5. positions
+### 6. positions
 **Purpose**: Tracks current portfolio positions
 
 | Column | Type | Constraints | Description |

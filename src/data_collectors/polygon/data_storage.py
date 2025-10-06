@@ -85,6 +85,57 @@ class PolygonDataStorage:
         if self.pool:
             await self.pool.close()
             logger.info("Disconnected from TimescaleDB")
+    
+    async def _get_or_create_ticker_table(
+        self, 
+        conn: Connection, 
+        symbol: str, 
+        data_type: str = 'ohlcv', 
+        timeframe: str = '1m'
+    ) -> Optional[str]:
+        """
+        Get or create a table for a specific ticker.
+        
+        Args:
+            conn: Database connection
+            symbol: Stock symbol
+            data_type: Type of data ('ohlcv', 'trades', 'quotes')
+            timeframe: Data timeframe ('1m', '5m', '1d')
+            
+        Returns:
+            Table name if successful, None if failed
+        """
+        try:
+            # First, try to get existing table name
+            table_name = await conn.fetchval(
+                "SELECT get_ticker_table_name($1, $2, $3)",
+                symbol, data_type, timeframe
+            )
+            
+            if table_name:
+                return table_name
+            
+            # If table doesn't exist, create it
+            created = await conn.fetchval(
+                "SELECT create_ticker_table($1, $2, $3)",
+                symbol, data_type, timeframe
+            )
+            
+            if created:
+                # Get the newly created table name
+                table_name = await conn.fetchval(
+                    "SELECT get_ticker_table_name($1, $2, $3)",
+                    symbol, data_type, timeframe
+                )
+                logger.info(f"Created new table {table_name} for {symbol}")
+                return table_name
+            else:
+                logger.error(f"Failed to create table for {symbol}")
+                return None
+                
+        except Exception as e:
+            logger.error(f"Error getting/creating table for {symbol}: {e}")
+            return None
             
     async def store_ohlcv_data(
         self,
@@ -94,7 +145,7 @@ class PolygonDataStorage:
         upsert: bool = True
     ) -> StorageResult:
         """
-        Store OHLCV data in TimescaleDB.
+        Store OHLCV data in TimescaleDB using ticker-specific tables.
         
         Args:
             symbol: Stock symbol
@@ -110,6 +161,11 @@ class PolygonDataStorage:
             
         try:
             async with self.pool.acquire() as conn:
+                # Get or create table for this ticker
+                table_name = await self._get_or_create_ticker_table(conn, symbol, 'ohlcv', '1m')
+                if not table_name:
+                    return StorageResult(success=False, error=f"Failed to create table for {symbol}")
+                
                 records_inserted = 0
                 records_updated = 0
                 records_skipped = 0
@@ -124,12 +180,12 @@ class PolygonDataStorage:
                             records_skipped += 1
                             continue
                             
-                        # Insert or update record
+                        # Insert or update record using dynamic table name
                         if upsert:
-                            query = """
-                                INSERT INTO ohlcv_data (symbol, timestamp, open, high, low, close, volume, vwap, transactions)
-                                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-                                ON CONFLICT (symbol, timestamp) 
+                            query = f"""
+                                INSERT INTO {table_name} (timestamp, open, high, low, close, volume, vwap, transactions)
+                                VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+                                ON CONFLICT (timestamp) 
                                 DO UPDATE SET
                                     open = EXCLUDED.open,
                                     high = EXCLUDED.high,
@@ -137,13 +193,13 @@ class PolygonDataStorage:
                                     close = EXCLUDED.close,
                                     volume = EXCLUDED.volume,
                                     vwap = EXCLUDED.vwap,
-                                    transactions = EXCLUDED.transactions
+                                    transactions = EXCLUDED.transactions,
+                                    updated_at = NOW()
                                 RETURNING (xmax = 0) AS inserted
                             """
                             
                             result = await conn.fetchrow(
                                 query,
-                                symbol,
                                 timestamp,
                                 bar['o'],
                                 bar['h'],
@@ -159,14 +215,13 @@ class PolygonDataStorage:
                             else:
                                 records_updated += 1
                         else:
-                            query = """
-                                INSERT INTO ohlcv_data (symbol, timestamp, open, high, low, close, volume, vwap, transactions)
-                                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+                            query = f"""
+                                INSERT INTO {table_name} (timestamp, open, high, low, close, volume, vwap, transactions)
+                                VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
                             """
                             
                             await conn.execute(
                                 query,
-                                symbol,
                                 timestamp,
                                 bar['o'],
                                 bar['h'],
@@ -201,7 +256,7 @@ class PolygonDataStorage:
     
     async def store_ticker_details(self, symbol: str, details: Dict[str, Any]) -> StorageResult:
         """
-        Store ticker details in database.
+        Store ticker details in database and update ticker registry.
         
         Args:
             symbol: Stock symbol
@@ -239,6 +294,7 @@ class PolygonDataStorage:
                 # Extract relevant fields
                 result = details.get('results', {}) if 'results' in details else details
                 
+                # Store in ticker_details table
                 query = """
                     INSERT INTO ticker_details (
                         symbol, name, market, locale, primary_exchange, type, active,
@@ -284,6 +340,32 @@ class PolygonDataStorage:
                     result.get('share_class_shares_outstanding'),
                     result.get('weighted_shares_outstanding'),
                     result.get('market_cap')
+                )
+                
+                # Update ticker registry with metadata
+                await conn.execute("""
+                    INSERT INTO ticker_registry (
+                        symbol, table_name, data_type, timeframe, is_active,
+                        company_name, sector, market_cap, currency, last_updated
+                    )
+                    VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, NOW())
+                    ON CONFLICT (symbol) 
+                    DO UPDATE SET
+                        company_name = EXCLUDED.company_name,
+                        sector = EXCLUDED.sector,
+                        market_cap = EXCLUDED.market_cap,
+                        currency = EXCLUDED.currency,
+                        last_updated = NOW()
+                """, 
+                symbol,
+                f"ohlcv_{symbol.lower()}_1m",  # Default table name
+                'ohlcv',
+                '1m',
+                result.get('active', True),
+                result.get('name'),
+                result.get('market'),
+                result.get('market_cap'),
+                result.get('currency_name', 'USD')
                 )
                 
                 logger.info(f"Stored ticker details for {symbol}")
@@ -420,15 +502,24 @@ class PolygonDataStorage:
         """
         try:
             async with self.pool.acquire() as conn:
-                query = """
+                # Get table name for this symbol
+                table_name = await conn.fetchval(
+                    "SELECT get_ticker_table_name($1, $2, $3)",
+                    symbol, 'ohlcv', '1m'
+                )
+                
+                if not table_name:
+                    logger.warning(f"No table found for symbol {symbol}")
+                    return None
+                
+                query = f"""
                     SELECT timestamp, open, high, low, close, volume, vwap, transactions
-                    FROM ohlcv_data
-                    WHERE symbol = $1
+                    FROM {table_name}
                     ORDER BY timestamp DESC
-                    LIMIT $2
+                    LIMIT $1
                 """
                 
-                rows = await conn.fetch(query, symbol, limit)
+                rows = await conn.fetch(query, limit)
                 
                 if not rows:
                     return None
@@ -466,16 +557,25 @@ class PolygonDataStorage:
         """
         try:
             async with self.pool.acquire() as conn:
-                query = """
+                # Get table name for this symbol
+                table_name = await conn.fetchval(
+                    "SELECT get_ticker_table_name($1, $2, $3)",
+                    symbol, 'ohlcv', '1m'
+                )
+                
+                if not table_name:
+                    logger.warning(f"No table found for symbol {symbol}")
+                    return None
+                
+                query = f"""
                     SELECT timestamp, open, high, low, close, volume, vwap, transactions
-                    FROM ohlcv_data
-                    WHERE symbol = $1
-                    AND timestamp >= $2
-                    AND timestamp <= $3
+                    FROM {table_name}
+                    WHERE timestamp >= $1
+                    AND timestamp <= $2
                     ORDER BY timestamp ASC
                 """
                 
-                rows = await conn.fetch(query, symbol, start_date, end_date)
+                rows = await conn.fetch(query, start_date, end_date)
                 
                 if not rows:
                     return None
@@ -508,23 +608,38 @@ class PolygonDataStorage:
         """
         try:
             async with self.pool.acquire() as conn:
+                # Get all active symbols from ticker registry
+                query = """
+                    SELECT symbol FROM ticker_registry 
+                    WHERE is_active = TRUE
+                    ORDER BY symbol
+                """
+                rows = await conn.fetch(query)
+                
+                # If date range is specified, filter symbols that have data in that range
                 if start_date and end_date:
-                    query = """
-                        SELECT DISTINCT symbol
-                        FROM ohlcv_data
-                        WHERE timestamp >= $1 AND timestamp <= $2
-                        ORDER BY symbol
-                    """
-                    rows = await conn.fetch(query, start_date, end_date)
-                else:
-                    query = """
-                        SELECT DISTINCT symbol
-                        FROM ohlcv_data
-                        ORDER BY symbol
-                    """
-                    rows = await conn.fetch(query)
+                    symbols_with_data = []
+                    for row in rows:
+                        symbol = row['symbol']
+                        table_name = await conn.fetchval(
+                            "SELECT get_ticker_table_name($1, $2, $3)",
+                            symbol, 'ohlcv', '1m'
+                        )
+                        
+                        if table_name:
+                            # Check if this symbol has data in the date range
+                            check_query = f"""
+                                SELECT 1 FROM {table_name}
+                                WHERE timestamp >= $1 AND timestamp <= $2
+                                LIMIT 1
+                            """
+                            has_data = await conn.fetchval(check_query, start_date, end_date)
+                            if has_data:
+                                symbols_with_data.append(symbol)
                     
-                return [row['symbol'] for row in rows]
+                    return symbols_with_data
+                else:
+                    return [row['symbol'] for row in rows]
                 
         except Exception as e:
             logger.error(f"Failed to get symbols with data: {e}")
@@ -539,33 +654,50 @@ class PolygonDataStorage:
         """
         try:
             async with self.pool.acquire() as conn:
-                # Get total records
-                total_records = await conn.fetchval("SELECT COUNT(*) FROM ohlcv_data")
+                # Get active symbols from registry
+                symbols = await conn.fetch("SELECT symbol FROM ticker_registry WHERE is_active = TRUE")
                 
-                # Get unique symbols
-                unique_symbols = await conn.fetchval("SELECT COUNT(DISTINCT symbol) FROM ohlcv_data")
+                total_records = 0
+                symbol_counts = []
+                earliest_date = None
+                latest_date = None
                 
-                # Get date range
-                date_range = await conn.fetchrow("""
-                    SELECT MIN(timestamp) as earliest, MAX(timestamp) as latest
-                    FROM ohlcv_data
-                """)
+                for symbol_row in symbols:
+                    symbol = symbol_row['symbol']
+                    table_name = await conn.fetchval(
+                        "SELECT get_ticker_table_name($1, $2, $3)",
+                        symbol, 'ohlcv', '1m'
+                    )
+                    
+                    if table_name:
+                        # Get count for this symbol
+                        count = await conn.fetchval(f"SELECT COUNT(*) FROM {table_name}")
+                        total_records += count
+                        
+                        if count > 0:
+                            symbol_counts.append({'symbol': symbol, 'count': count})
+                            
+                            # Get date range for this symbol
+                            date_range = await conn.fetchrow(f"""
+                                SELECT MIN(timestamp) as earliest, MAX(timestamp) as latest
+                                FROM {table_name}
+                            """)
+                            
+                            if date_range['earliest']:
+                                if earliest_date is None or date_range['earliest'] < earliest_date:
+                                    earliest_date = date_range['earliest']
+                                if latest_date is None or date_range['latest'] > latest_date:
+                                    latest_date = date_range['latest']
                 
-                # Get records by symbol
-                symbol_counts = await conn.fetch("""
-                    SELECT symbol, COUNT(*) as count
-                    FROM ohlcv_data
-                    GROUP BY symbol
-                    ORDER BY count DESC
-                    LIMIT 10
-                """)
+                # Sort symbols by count
+                symbol_counts.sort(key=lambda x: x['count'], reverse=True)
                 
                 return {
                     'total_records': total_records,
-                    'unique_symbols': unique_symbols,
-                    'earliest_date': date_range['earliest'],
-                    'latest_date': date_range['latest'],
-                    'top_symbols': [{'symbol': row['symbol'], 'count': row['count']} for row in symbol_counts]
+                    'unique_symbols': len(symbols),
+                    'earliest_date': earliest_date,
+                    'latest_date': latest_date,
+                    'top_symbols': symbol_counts[:10]
                 }
                 
         except Exception as e:

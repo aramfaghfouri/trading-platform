@@ -114,6 +114,8 @@ validate_config() {
     print_status "Validating configuration..."
     
     cd "$PROJECT_ROOT"
+    eval "$(conda shell.bash hook)"
+    conda activate env-trading
     python scripts/validate_config.py
     
     if [[ $? -eq 0 ]]; then
@@ -142,7 +144,9 @@ collect_data() {
     print_status "  End Date: $end_date"
     print_status "  Tickers: $tickers"
     
-    # Run data collection
+    # Activate conda environment and run data collection
+    eval "$(conda shell.bash hook)"
+    conda activate env-trading
     python scripts/collect_market_data.py
     
     if [[ $? -eq 0 ]]; then
