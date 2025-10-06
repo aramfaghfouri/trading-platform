@@ -28,7 +28,7 @@ from .collection_manager import (
 )
 
 # Main collection script
-from .collect_data import collect_and_store_data_working_approach
+from .main import main as collect_market_data
 
 __all__ = [
     # Enhanced Collector
@@ -56,5 +56,5 @@ __all__ = [
     "collect_symbol_range",
     
     # Main Collection Script
-    "collect_and_store_data_working_approach",
+    "collect_market_data",
 ]

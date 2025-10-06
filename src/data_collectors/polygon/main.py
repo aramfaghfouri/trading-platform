@@ -1,162 +1,198 @@
+#!/usr/bin/env python3
 """
 Main entry point for Polygon Data Collector
+Consolidated from multiple entry points for simplicity
 """
 
 import asyncio
-import logging
-import os
 import sys
-from datetime import datetime
-from typing import List, Dict, Any
+import argparse
+from pathlib import Path
+from datetime import datetime, timedelta, timezone
+from typing import List, Dict, Any, Optional
 
-# Add parent directory to path for imports
-sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
+# Add src to path for imports
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from .client import PolygonClient
-from .ticker_collector import TickerCollector
-from .data_processor import TickerDataProcessor
-from .config import PolygonConfig
+from data_collectors.polygon.collect_data import collect_and_store_data_working_approach
+from data_collectors.polygon.enhanced_collector import PolygonDataCollector, Timeframe
+from data_collectors.polygon.data_storage import PolygonDataStorage
+from data_collectors.polygon.collection_manager import collect_and_store_data
+from loguru import logger
 
-# Setup logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger(__name__)
 
-class PolygonDataService:
-    """Main service class for Polygon data collection"""
-    
-    def __init__(self):
-        self.config = PolygonConfig()
-        self.config.validate()
+async def collect_market_data():
+    """Main data collection function using the working approach."""
+    try:
+        logger.info("Starting market data collection...")
         
-        self.collector = TickerCollector(self.config.api_key)
-        self.processor = TickerDataProcessor()
+        # Use the working approach that handles table creation and database integration
+        success = await collect_and_store_data_working_approach()
         
-        # Create data directory if it doesn't exist
-        os.makedirs(self.config.data_storage_path, exist_ok=True)
+        if success:
+            logger.info("Market data collection completed successfully!")
+            return True
+        else:
+            logger.error("Market data collection failed!")
+            return False
+            
+    except Exception as e:
+        logger.error(f"Market data collection failed: {e}")
+        return False
+
+
+async def collect_sample_data(symbols: List[str] = None, days_back: int = 30):
+    """Collect sample data for testing purposes."""
+    if symbols is None:
+        symbols = ["AAPL", "MSFT", "GOOGL", "TSLA", "AMZN"]
     
-    async def collect_ticker_data(self, tickers: List[str], days_back: int = None) -> List[Dict[str, Any]]:
-        """Collect data for specified tickers"""
-        if days_back is None:
-            days_back = self.config.default_days_back
+    print("🚀 Collecting Sample Market Data")
+    print("=" * 50)
+    
+    # Use a longer historical period to ensure we get data
+    end_date = datetime.now(timezone.utc) - timedelta(days=7)  # Go back a week
+    start_date = end_date - timedelta(days=days_back)
+    
+    print(f"📅 Date range: {start_date.date()} to {end_date.date()}")
+    print(f"📈 Symbols: {', '.join(symbols)}")
+    print(f"⏱️  Timeframe: Daily bars")
+    print()
+    
+    try:
+        # Collect data using collection manager
+        stats = await collect_and_store_data(
+            symbols=symbols,
+            start_date=start_date,
+            end_date=end_date,
+            timeframe=Timeframe.DAY_1,
+            max_concurrent=3  # Limit concurrent requests
+        )
         
-        logger.info(f"Starting data collection for {len(tickers)} tickers")
+        print("\n📊 Collection Results:")
+        print(f"   Total tasks: {stats['total_tasks']}")
+        print(f"   Completed: {stats['completed_tasks']}")
+        print(f"   Failed: {stats['failed_tasks']}")
+        print(f"   Success rate: {stats['success_rate']:.1%}")
+        print(f"   Records collected: {stats['total_records_collected']:,}")
+        print(f"   Records stored: {stats['total_records_stored']:,}")
         
-        try:
-            # Collect data
-            collected_data = await self.collector.collect_multiple_tickers(tickers, days_back)
+        if stats['total_records_stored'] > 0:
+            print("\n🎉 Successfully collected and stored market data!")
+            return True
+        else:
+            print("\n⚠️  No data was collected. This might be due to:")
+            print("   - API rate limits")
+            print("   - Non-trading days in the date range")
+            print("   - API key limitations")
+            return False
             
-            # Process data
-            processed_data = []
-            for data in collected_data:
-                processed = self.processor.process_historical_data(data)
-                if processed:
-                    processed_data.append(processed)
-            
-            # Export data
-            if self.config.enable_csv_export:
-                csv_filename = os.path.join(
-                    self.config.data_storage_path,
-                    f"ticker_data_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv"
-                )
-                self.collector.export_to_csv(csv_filename)
-                logger.info(f"Data exported to {csv_filename}")
-            
-            logger.info(f"Successfully collected and processed data for {len(processed_data)} tickers")
-            return processed_data
-            
-        except Exception as e:
-            logger.error(f"Failed to collect ticker data: {e}")
-            raise
+    except Exception as e:
+        print(f"❌ Data collection failed: {e}")
+        return False
+
+
+async def debug_collector():
+    """Debug the enhanced collector step by step."""
+    print("🔍 Debugging Enhanced Collector")
+    print("=" * 40)
     
-    async def collect_top_tickers(self, limit: int = 100, days_back: int = None) -> List[Dict[str, Any]]:
-        """Collect data for top tickers by volume"""
-        logger.info(f"Collecting data for top {limit} tickers")
+    async with PolygonDataCollector() as collector:
+        print("✅ Collector initialized")
         
-        try:
-            # Get top tickers
-            top_tickers = self.collector.get_top_tickers(limit)
-            
-            if not top_tickers:
-                logger.warning("No top tickers found")
-                return []
-            
-            # Collect data for top tickers
-            return await self.collect_ticker_data(top_tickers, days_back)
-            
-        except Exception as e:
-            logger.error(f"Failed to collect top tickers data: {e}")
-            raise
-    
-    async def search_and_collect(self, search_term: str, limit: int = 50, days_back: int = None) -> List[Dict[str, Any]]:
-        """Search for tickers and collect data"""
-        logger.info(f"Searching for tickers with term: {search_term}")
+        # Test parameters
+        symbol = "AAPL"
+        multiplier = 1
+        timespan = Timeframe.DAY_1
+        from_date = "2024-09-01"
+        to_date = "2024-09-30"
         
-        try:
-            # Search for tickers
-            search_results = self.collector.search_tickers(search_term, limit)
-            
-            if not search_results:
-                logger.warning(f"No tickers found for search term: {search_term}")
-                return []
-            
-            # Extract ticker symbols
-            tickers = [result['ticker'] for result in search_results]
-            
-            # Collect data
-            return await self.collect_ticker_data(tickers, days_back)
-            
-        except Exception as e:
-            logger.error(f"Failed to search and collect data: {e}")
-            raise
+        print(f"📊 Test parameters:")
+        print(f"  Symbol: {symbol}")
+        print(f"  From: {from_date}")
+        print(f"  To: {to_date}")
+        print(f"  Timespan: {timespan.value}")
+        
+        # Test data collection
+        result = await collector.get_aggregates(
+            symbol=symbol,
+            multiplier=multiplier,
+            timespan=timespan,
+            from_date=from_date,
+            to_date=to_date
+        )
+        
+        print(f"✅ Data collection completed")
+        print(f"  Result success: {result.success}")
+        print(f"  Result error: {result.error}")
+        if result.data and 'results' in result.data:
+            print(f"  Records collected: {len(result.data['results'])}")
+        else:
+            print("  No data collected")
+
+
+async def check_database_status():
+    """Check database status and show data summary."""
+    print("🗄️  Checking Database Status")
+    print("=" * 40)
     
-    def get_market_status(self) -> Dict[str, Any]:
-        """Get current market status"""
-        return self.collector.get_market_status()
-    
-    def generate_report(self, processed_data: List[Dict[str, Any]]) -> Dict[str, Any]:
-        """Generate analysis report"""
-        return self.processor.generate_summary_report(processed_data)
+    try:
+        async with PolygonDataStorage() as storage:
+            print("✅ Database connection successful")
+            
+            # Get data summary
+            summary = await storage.get_data_summary()
+            if summary:
+                print(f"📊 Database Summary:")
+                print(f"   Total records: {summary.get('total_records', 0):,}")
+                print(f"   Unique symbols: {summary.get('unique_symbols', 0)}")
+                print(f"   Date range: {summary.get('earliest_date', 'N/A')} to {summary.get('latest_date', 'N/A')}")
+                
+                if summary.get('top_symbols'):
+                    print(f"   Top symbols: {', '.join([s['symbol'] for s in summary['top_symbols'][:5]])}")
+            else:
+                print("⚠️  No data found in database")
+                
+    except Exception as e:
+        print(f"❌ Database check failed: {e}")
+
 
 async def main():
-    """Main function for command line usage"""
-    import argparse
-    
+    """Main function with command line interface."""
     parser = argparse.ArgumentParser(description='Polygon Data Collector')
-    parser.add_argument('--tickers', nargs='+', help='Ticker symbols to collect data for')
-    parser.add_argument('--search', type=str, help='Search term for tickers')
-    parser.add_argument('--top', type=int, help='Number of top tickers to collect')
-    parser.add_argument('--days', type=int, default=30, help='Number of days back to collect data')
-    parser.add_argument('--limit', type=int, default=100, help='Limit for search results')
+    parser.add_argument('command', nargs='?', default='collect',
+                       choices=['collect', 'sample', 'debug', 'status'],
+                       help='Command to run (default: collect)')
+    parser.add_argument('--symbols', nargs='+', 
+                       help='Ticker symbols to collect data for (for sample command)')
+    parser.add_argument('--days', type=int, default=30,
+                       help='Number of days back to collect data (for sample command)')
     
     args = parser.parse_args()
     
-    # Initialize service
-    service = PolygonDataService()
-    
-    try:
-        if args.tickers:
-            # Collect data for specific tickers
-            data = await service.collect_ticker_data(args.tickers, args.days)
-        elif args.search:
-            # Search and collect data
-            data = await service.search_and_collect(args.search, args.limit, args.days)
-        elif args.top:
-            # Collect top tickers
-            data = await service.collect_top_tickers(args.top, args.days)
-        else:
-            # Default: collect top 50 tickers
-            data = await service.collect_top_tickers(50, args.days)
+    if args.command == 'collect':
+        # Main data collection using project configuration
+        success = await collect_market_data()
+        return 0 if success else 1
         
-        # Generate report
-        report = service.generate_report(data)
-        logger.info(f"Analysis report: {report}")
+    elif args.command == 'sample':
+        # Sample data collection for testing
+        success = await collect_sample_data(args.symbols, args.days)
+        return 0 if success else 1
         
-    except Exception as e:
-        logger.error(f"Service failed: {e}")
-        sys.exit(1)
+    elif args.command == 'debug':
+        # Debug collector functionality
+        await debug_collector()
+        return 0
+        
+    elif args.command == 'status':
+        # Check database status
+        await check_database_status()
+        return 0
+        
+    else:
+        print(f"Unknown command: {args.command}")
+        return 1
+
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    sys.exit(asyncio.run(main()))

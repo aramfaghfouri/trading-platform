@@ -136,6 +136,7 @@ async def create_ticker_tables(symbols: list):
     print("=" * 50)
     
     storage = PolygonDataStorage()
+    await storage.connect()  # Connect to database
     created_tables = []
     failed_tables = []
     
@@ -174,6 +175,9 @@ async def create_ticker_tables(symbols: list):
     
     if failed_tables:
         print(f"   Failed symbols: {', '.join(failed_tables)}")
+    
+    # Clean up database connection
+    await storage.disconnect()
     
     return len(failed_tables) == 0
 
@@ -214,6 +218,7 @@ async def collect_and_store_data_working_approach():
     # STEP 2: Initialize storage
     print(f"\n📡 STEP 2: Initializing data collection...")
     storage = PolygonDataStorage()
+    await storage.connect()  # Connect to database
     
     # Generate weekday segments
     weekday_segments = segment_same_week_days(start, end)
@@ -287,6 +292,9 @@ async def collect_and_store_data_working_approach():
     print(f"   📈 Total records stored: {total_records}")
     print(f"   ⏱️  Elapsed time: {elapsed_time:.2f} seconds")
     print(f"   📋 Total processed: {len(symbol_date_pairs)} symbol-date pairs")
+    
+    # Clean up database connection
+    await storage.disconnect()
     
     return successful_collections > 0
 

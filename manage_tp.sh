@@ -147,7 +147,7 @@ collect_data() {
     # Activate conda environment and run data collection
     eval "$(conda shell.bash hook)"
     conda activate env-trading
-    python scripts/collect_market_data.py
+    python src/data_collectors/polygon/main.py collect
     
     if [[ $? -eq 0 ]]; then
         print_success "Data collection completed successfully!"
@@ -165,21 +165,117 @@ show_status() {
     if docker ps | grep -q "timescaledb"; then
         print_success "TimescaleDB is running"
         
-        # Show database info
+        # Show database info using new ticker-specific tables
         print_status "Database information:"
         docker exec trading_timescaledb psql -U trading_user -d trading_platform -c "
             SELECT 
                 symbol, 
+                table_name,
+                is_active,
+                last_updated
+            FROM ticker_registry 
+            ORDER BY last_updated DESC 
+            LIMIT 10;
+        " 2>/dev/null || print_warning "No ticker registry found"
+        
+        # Show data counts for each ticker
+        print_status "Data counts by ticker:"
+        docker exec trading_timescaledb psql -U trading_user -d trading_platform -c "
+            SELECT 
+                symbol,
                 COUNT(*) as records,
                 MIN(timestamp) as earliest,
                 MAX(timestamp) as latest
-            FROM ohlcv_data 
+            FROM (
+                SELECT symbol, timestamp FROM ohlcv_aapl_1m WHERE 1=0
+                UNION ALL SELECT 'AAPL', timestamp FROM ohlcv_aapl_1m
+                UNION ALL SELECT 'GOOGL', timestamp FROM ohlcv_googl_1m
+                UNION ALL SELECT 'MSFT', timestamp FROM ohlcv_msft_1m
+                UNION ALL SELECT 'TSLA', timestamp FROM ohlcv_tsla_1m
+                UNION ALL SELECT 'AMZN', timestamp FROM ohlcv_amzn_1m
+            ) data
             GROUP BY symbol 
             ORDER BY records DESC 
             LIMIT 10;
-        " 2>/dev/null || print_warning "No data found in database"
+        " 2>/dev/null || print_warning "No data found in ticker tables"
     else
         print_warning "TimescaleDB is not running"
+    fi
+}
+
+# Function to collect sample data for testing
+collect_sample_data() {
+    print_status "Collecting sample data for testing..."
+    
+    cd "$PROJECT_ROOT"
+    
+    # Activate conda environment and run sample data collection
+    eval "$(conda shell.bash hook)"
+    conda activate env-trading
+    python src/data_collectors/polygon/main.py sample --symbols AAPL MSFT GOOGL TSLA AMZN --days 30
+    
+    if [[ $? -eq 0 ]]; then
+        print_success "Sample data collection completed successfully!"
+    else
+        print_error "Sample data collection failed!"
+        exit 1
+    fi
+}
+
+# Function to debug the collector
+debug_collector() {
+    print_status "Debugging collector functionality..."
+    
+    cd "$PROJECT_ROOT"
+    
+    # Activate conda environment and run debug
+    eval "$(conda shell.bash hook)"
+    conda activate env-trading
+    python src/data_collectors/polygon/main.py debug
+    
+    if [[ $? -eq 0 ]]; then
+        print_success "Debug completed successfully!"
+    else
+        print_error "Debug failed!"
+        exit 1
+    fi
+}
+
+# Function to check database status in detail
+check_database() {
+    print_status "Checking database status in detail..."
+    
+    cd "$PROJECT_ROOT"
+    
+    # Activate conda environment and run status check
+    eval "$(conda shell.bash hook)"
+    conda activate env-trading
+    python src/data_collectors/polygon/main.py status
+    
+    if [[ $? -eq 0 ]]; then
+        print_success "Database status check completed!"
+    else
+        print_error "Database status check failed!"
+        exit 1
+    fi
+}
+
+# Function to migrate data from old structure
+migrate_data() {
+    print_status "Migrating data from old table structure..."
+    
+    cd "$PROJECT_ROOT"
+    
+    # Activate conda environment and run migration
+    eval "$(conda shell.bash hook)"
+    conda activate env-trading
+    python src/data_collectors/polygon/scripts/migrate_to_ticker_tables.py --backup
+    
+    if [[ $? -eq 0 ]]; then
+        print_success "Data migration completed successfully!"
+    else
+        print_error "Data migration failed!"
+        exit 1
     fi
 }
 
@@ -193,19 +289,30 @@ show_help() {
     echo "  --delete-databases    Delete all databases and containers"
     echo "  --start-database      Start TimescaleDB"
     echo "  --collect-data        Collect data for all configured tickers"
+    echo "  --collect-sample      Collect sample data for testing (AAPL, MSFT, GOOGL, TSLA, AMZN)"
     echo "  --validate-config     Validate configuration files"
     echo "  --status              Show system status"
+    echo "  --check-database      Check database status in detail"
+    echo "  --debug-collector     Debug collector functionality"
+    echo "  --migrate-data        Migrate data from old table structure"
     echo "  --help                Show this help message"
     echo ""
     echo "Examples:"
     echo "  $0 --delete-databases"
     echo "  $0 --start-database"
     echo "  $0 --collect-data"
+    echo "  $0 --collect-sample"
     echo "  $0 --validate-config"
     echo "  $0 --status"
+    echo "  $0 --check-database"
+    echo "  $0 --debug-collector"
+    echo "  $0 --migrate-data"
     echo ""
     echo "Full workflow:"
     echo "  $0 --delete-databases && $0 --start-database && $0 --collect-data"
+    echo ""
+    echo "Testing workflow:"
+    echo "  $0 --start-database && $0 --collect-sample && $0 --check-database"
 }
 
 # Main script logic
@@ -230,12 +337,28 @@ main() {
             check_requirements
             collect_data
             ;;
+        --collect-sample)
+            check_requirements
+            collect_sample_data
+            ;;
         --validate-config)
             check_requirements
             validate_config
             ;;
         --status)
             show_status
+            ;;
+        --check-database)
+            check_requirements
+            check_database
+            ;;
+        --debug-collector)
+            check_requirements
+            debug_collector
+            ;;
+        --migrate-data)
+            check_requirements
+            migrate_data
             ;;
         --help|-h)
             show_help
