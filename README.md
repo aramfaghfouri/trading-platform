@@ -75,10 +75,17 @@ See [README-Track.md](README-Track.md) for detailed progress tracking and implem
    nano .env
    ```
 
-4. **Start TimescaleDB**
+4. **Start TimescaleDB (uses dynamic port from .env)**
    ```bash
-   # Start TimescaleDB with Docker Compose
-   docker-compose up -d timescaledb
+   # Copy env template and set Timescale vars
+   cp env.example .env
+   # In .env, ensure:
+   # TIMESCALEDB_HOST=localhost
+   # TIMESCALEDB_PORT=6432
+   # DATABASE_URL=postgresql://trading_user:trading_password@${TIMESCALEDB_HOST}:${TIMESCALEDB_PORT}/trading_platform
+
+   # Start DB via management script (recommended)
+   ./manage_tp.sh --start-database
    ```
 
 5. **Configure data collection**
@@ -120,8 +127,8 @@ The easiest way to get started is using the management script:
 
 3. **Access database**
    ```bash
-   # Connect to TimescaleDB
-   docker exec -it trading-platform-timescaledb-1 psql -U trading_user -d trading_platform
+   # Connect to TimescaleDB container
+   docker exec -it trading_timescaledb psql -U trading_user -d trading_platform
    ```
 
 4. **View collected data**
@@ -184,15 +191,13 @@ trading-platform/
 
 ### Environment Variables
 
-Set up your API keys in `.env`:
+Set connectivity in `.env` (dynamic DB port) and API keys:
 
 ```bash
-# Database Configuration
-DB_HOST=localhost
-DB_PORT=5432
-DB_NAME=trading_platform
-DB_USER=trading_user
-DB_PASSWORD=trading_password
+# TimescaleDB (dynamic)
+TIMESCALEDB_HOST=localhost
+TIMESCALEDB_PORT=6432
+DATABASE_URL=postgresql://trading_user:trading_password@${TIMESCALEDB_HOST}:${TIMESCALEDB_PORT}/trading_platform
 
 # Polygon.io API
 POLYGON_API_KEY=your_polygon_api_key_here
