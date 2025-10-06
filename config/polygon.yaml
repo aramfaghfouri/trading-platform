@@ -1,0 +1,79 @@
+# Polygon.io API Configuration
+polygon:
+  # API Settings
+  api:
+    api_key: "your_polygon_api_key_here"  # Set via POLYGON_API_KEY environment variable
+    base_url: "https://api.polygon.io"
+    timeout: 30
+    retry_attempts: 3
+    retry_delay: 1
+    rate_limit: 5  # requests per second
+    
+  # Data Collection Settings
+  data_collection:
+    # Historical Data
+    historical:
+      enabled: true
+      max_requests_per_minute: 5
+      batch_size: 1000
+      lookback_days: 365
+      
+    # Real-time Data
+    realtime:
+      enabled: false  # Will be enabled in Phase 3
+      websocket_url: "wss://socket.polygon.io/stocks"
+      reconnect_attempts: 5
+      reconnect_delay: 5
+      
+  # Market Data Settings
+  market_data:
+    # Supported Exchanges
+    exchanges:
+      - "NASDAQ"
+      - "NYSE"
+      - "AMEX"
+      
+    # Data Types
+    data_types:
+      - "trades"
+      - "quotes"
+      - "bars"
+      - "trades_nbbo"
+      
+    # Timeframes
+    timeframes:
+      - "1min"
+      - "5min"
+      - "15min"
+      - "1hour"
+      - "1day"
+      
+  # Symbols Configuration
+  symbols:
+    # Default symbols to track
+    default:
+      - "AAPL"
+      - "MSFT"
+      - "GOOGL"
+      - "AMZN"
+      - "TSLA"
+      - "META"
+      - "NVDA"
+      - "NFLX"
+      - "AMD"
+      - "INTC"
+      
+    # Symbol categories
+    categories:
+      tech: ["AAPL", "MSFT", "GOOGL", "AMZN", "META", "NVDA", "AMD", "INTC"]
+      finance: ["JPM", "BAC", "WFC", "GS", "MS"]
+      healthcare: ["JNJ", "PFE", "UNH", "ABBV", "MRK"]
+      energy: ["XOM", "CVX", "COP", "EOG", "SLB"]
+      
+  # Data Quality Settings
+  quality:
+    validate_data: true
+    min_volume_threshold: 1000
+    max_price_deviation: 0.1  # 10% from previous close
+    outlier_detection: true
+    missing_data_handling: "interpolate"

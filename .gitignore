@@ -20,7 +20,6 @@ parts/
 sdist/
 var/
 wheels/
-pip-wheel-metadata/
 share/python-wheels/
 *.egg-info/
 .installed.cfg
@@ -50,6 +49,7 @@ coverage.xml
 *.py,cover
 .hypothesis/
 .pytest_cache/
+cover/
 
 # Translations
 *.mo
@@ -72,6 +72,7 @@ instance/
 docs/_build/
 
 # PyBuilder
+.pybuilder/
 target/
 
 # Jupyter Notebook
@@ -82,7 +83,9 @@ profile_default/
 ipython_config.py
 
 # pyenv
-.python-version
+#   For a library or package, you might want to ignore these files since the code is
+#   intended to run in multiple environments; otherwise, check them in:
+# .python-version
 
 # pipenv
 #   According to pypa/pipenv#598, it is recommended to include Pipfile.lock in version control.
@@ -91,7 +94,22 @@ ipython_config.py
 #   install all needed dependencies.
 #Pipfile.lock
 
-# PEP 582; used by e.g. github.com/David-OConnor/pyflow
+# poetry
+#   Similar to Pipfile.lock, it is generally recommended to include poetry.lock in version control.
+#   This is especially recommended for binary packages to ensure reproducibility, and is more
+#   commonly ignored for libraries.
+#   https://python-poetry.org/docs/basic-usage/#commit-your-poetrylock-file-to-version-control
+#poetry.lock
+
+# pdm
+#   Similar to Pipfile.lock, it is generally recommended to include pdm.lock in version control.
+#pdm.lock
+#   pdm stores project-wide configurations in .pdm.toml, but it is recommended to not include it
+#   in version control.
+#   https://pdm.fming.dev/#use-with-ide
+.pdm.toml
+
+# PEP 582; used by e.g. github.com/David-OConnor/pyflow and github.com/pdm-project/pdm
 __pypackages__/
 
 # Celery stuff
@@ -128,38 +146,67 @@ dmypy.json
 # Pyre type checker
 .pyre/
 
-# Trading Platform Specific
-# Data files
-data/
-*.csv
-*.json
-*.parquet
-*.h5
-*.hdf5
+# pytype static type analyzer
+.pytype/
 
-# Logs
-logs/
-*.log
+# Cython debug symbols
+cython_debug/
+
+# PyCharm
+#  JetBrains specific template is maintained in a separate JetBrains.gitignore that can
+#  be added to the global gitignore or merged into this project gitignore.  For a PyCharm
+#  project, it is recommended to include the following files:
+#  .idea/
+#  *.iml
+#  *.ipr
+#  *.iws
+#  .idea/
+
+# Trading Platform Specific
+# =========================
+
+# Data files
+data/raw/*
+data/processed/*
+data/features/*
+data/backtests/*
+!data/raw/.gitkeep
+!data/processed/.gitkeep
+!data/features/.gitkeep
+!data/backtests/.gitkeep
+
+# Log files
+logs/*.log
+logs/*.gz
+logs/*.zip
+!logs/.gitkeep
+
+# Configuration files with sensitive data
+.env
+.env.local
+.env.production
+.env.staging
+config/secrets.yaml
+config/production.yaml
+config/staging.yaml
 
 # Database files
 *.db
 *.sqlite
 *.sqlite3
 
-# Configuration files with secrets
-.env.local
-.env.production
-config/secrets.yaml
-config/api_keys.yaml
+# Jupyter notebooks
+notebooks/*.ipynb
+notebooks/checkpoints/
 
-# Backtest results
-backtests/
-results/
+# Research files
+research/*.ipynb
+research/checkpoints/
+research/data/
+research/results/
 
-# Market data
-market_data/
-*.tick
-*.bar
+# Docker
+.dockerignore
 
 # IDE files
 .vscode/
@@ -177,26 +224,116 @@ market_data/
 ehthumbs.db
 Thumbs.db
 
-# Docker
-.dockerignore
-
 # Temporary files
-tmp/
-temp/
 *.tmp
 *.temp
+*.bak
+*.backup
 
-# QuantConnect specific
-LeanCLI/
-*.qc
-*.lean
+# API keys and secrets
+secrets/
+keys/
+*.key
+*.pem
+*.p12
+*.pfx
 
-# Interactive Brokers
-*.tws
-*.ibkr
+# Trading data
+trades/
+positions/
+orders/
+portfolio/
 
-# Jupyter notebooks checkpoints
-.ipynb_checkpoints/
+# Backtest results
+backtest_results/
+strategy_results/
+performance_reports/
 
-# Python virtual environments
-env-trading/
+# Model files
+models/
+*.pkl
+*.joblib
+*.h5
+*.hdf5
+
+# Cache files
+.cache/
+cache/
+*.cache
+
+# Test files
+test_data/
+test_results/
+test_output/
+
+# Documentation build
+docs/_build/
+docs/build/
+
+# Coverage reports
+htmlcov/
+.coverage
+coverage.xml
+
+# Profiling
+*.prof
+*.profile
+
+# Memory dumps
+*.dmp
+*.core
+
+# Lock files
+poetry.lock
+Pipfile.lock
+yarn.lock
+package-lock.json
+
+# Node modules (if using any frontend components)
+node_modules/
+
+# Compiled binaries
+*.exe
+*.dll
+*.so
+*.dylib
+
+# Archive files
+*.zip
+*.tar.gz
+*.rar
+*.7z
+
+# Large files
+*.csv
+*.parquet
+*.feather
+*.hdf5
+*.h5
+
+# VectorBT specific
+vectorbt_data/
+vectorbt_cache/
+
+# Polygon.io specific
+polygon_data/
+polygon_cache/
+
+# Interactive Brokers specific
+ibkr_data/
+ibkr_cache/
+ibkr_logs/
+
+# Strategy specific
+strategy_data/
+strategy_cache/
+strategy_logs/
+
+# Performance monitoring
+performance_data/
+monitoring_data/
+
+# System files
+system_logs/
+crash_dumps/
+error_logs/

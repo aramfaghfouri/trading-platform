@@ -1,0 +1,191 @@
+# Main Configuration File
+# This file imports and combines all other configuration files
+
+# Import other configuration files
+imports:
+  - "database.yaml"
+  - "polygon.yaml"
+  - "ibkr.yaml"
+  - "strategies.yaml"
+  - "trading.yaml"
+  - "logging.yaml"
+
+# Application Settings
+application:
+  name: "Trading Platform"
+  version: "0.1.0"
+  description: "VectorBT + Polygon.io + Interactive Brokers Trading Platform"
+  author: "Trading Platform Team"
+  
+# Environment Settings
+environment:
+  # Current environment
+  current: "development"  # development, staging, production
+  
+  # Environment-specific settings
+  development:
+    debug: true
+    log_level: "DEBUG"
+    enable_hot_reload: true
+    
+  staging:
+    debug: false
+    log_level: "INFO"
+    enable_hot_reload: false
+    
+  production:
+    debug: false
+    log_level: "WARNING"
+    enable_hot_reload: false
+    
+# Feature Flags
+features:
+  # Core features
+  core:
+    database: true
+    data_collection: true
+    strategy_framework: true
+    backtesting: true
+    
+  # Advanced features
+  advanced:
+    live_trading: false  # Will be enabled in Phase 3
+    real_time_data: false  # Will be enabled in Phase 3
+    risk_management: true
+    portfolio_management: true
+    
+  # Experimental features
+  experimental:
+    ml_integration: false
+    advanced_analytics: false
+    web_dashboard: false
+    
+# System Settings
+system:
+  # Timezone
+  timezone: "America/New_York"
+  
+  # Working Directory
+  working_directory: "."
+  
+  # Data Directory
+  data_directory: "data"
+  
+  # Logs Directory
+  logs_directory: "logs"
+  
+  # Config Directory
+  config_directory: "config"
+  
+  # Scripts Directory
+  scripts_directory: "scripts"
+  
+# API Settings
+api:
+  # REST API
+  rest:
+    enabled: false  # Will be enabled in Phase 4
+    host: "0.0.0.0"
+    port: 8000
+    workers: 4
+    
+  # WebSocket API
+  websocket:
+    enabled: false  # Will be enabled in Phase 4
+    host: "0.0.0.0"
+    port: 8001
+    
+# Security Settings
+security:
+  # API Security
+  api_security:
+    enabled: false  # Will be enabled in production
+    authentication: "jwt"
+    rate_limiting: true
+    
+  # Data Security
+  data_security:
+    encryption: false  # Will be enabled in production
+    audit_logging: true
+    
+# Monitoring Settings
+monitoring:
+  # Health Checks
+  health_checks:
+    enabled: true
+    interval: 30  # seconds
+    timeout: 10   # seconds
+    
+  # Metrics
+  metrics:
+    enabled: true
+    port: 9090
+    path: "/metrics"
+    
+  # Alerts
+  alerts:
+    enabled: false  # Will be enabled in production
+    email: false
+    slack: false
+    
+# Development Settings
+development:
+  # Testing
+  testing:
+    enabled: true
+    test_data: true
+    mock_apis: true
+    
+  # Debugging
+  debugging:
+    enabled: true
+    profile: false
+    trace: false
+    
+  # Hot Reload
+  hot_reload:
+    enabled: true
+    watch_directories:
+      - "src"
+      - "config"
+      - "scripts"
+      
+# Production Settings
+production:
+  # Performance
+  performance:
+    optimize: true
+    cache: true
+    compression: true
+    
+  # Reliability
+  reliability:
+    retry_attempts: 3
+    circuit_breaker: true
+    health_checks: true
+    
+  # Security
+  security:
+    ssl: true
+    authentication: true
+    rate_limiting: true
+    
+# Backup Settings
+backup:
+  # Database Backup
+  database:
+    enabled: true
+    schedule: "0 2 * * *"  # Daily at 2 AM
+    retention: "30 days"
+    
+  # Configuration Backup
+  configuration:
+    enabled: true
+    schedule: "0 3 * * *"  # Daily at 3 AM
+    retention: "90 days"
+    
+  # Log Backup
+  logs:
+    enabled: true
+    schedule: "0 4 * * *"  # Daily at 4 AM
+    retention: "30 days"

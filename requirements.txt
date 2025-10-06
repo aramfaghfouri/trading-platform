@@ -1,105 +1,219 @@
-# Trading Platform Dependencies
-# Core Data Collection & Processing
-requests>=2.31.0
-pandas>=2.0.0
-numpy>=1.24.0
-scipy>=1.9.0
-matplotlib>=3.7.0
-plotly>=5.24.0
-pytz>=2024.1
-tqdm>=4.66.0
-lz4>=4.0.0
+# Trading Platform Requirements
+# Core dependencies for VectorBT + Polygon.io + Interactive Brokers integration
 
-# High-Performance Data Processing
-polars>=1.0.0
-duckdb>=1.0.0
+# =============================================================================
+# CORE TRADING LIBRARIES
+# =============================================================================
 
-# Configuration & Environment
-python-dotenv>=1.0.0
-toml>=0.10.2
+# VectorBT - Vectorized backtesting and analysis
+vectorbt>=0.25.0
 
-# Polygon API
+# Polygon.io API client
 polygon-api-client>=1.12.0
 
-# Web Framework (for services)
+# Interactive Brokers integration
+ib-insync>=0.9.86
+
+# =============================================================================
+# DATA PROCESSING & ANALYSIS
+# =============================================================================
+
+# Core data science libraries
+numpy>=1.24.0
+pandas>=2.0.0
+scipy>=1.11.0
+
+# Technical analysis
+ta-lib>=0.4.0
+pandas-ta>=0.4.0
+
+# Data visualization
+matplotlib>=3.7.0
+seaborn>=0.12.0
+plotly>=5.15.0
+
+# =============================================================================
+# DATABASE & STORAGE
+# =============================================================================
+
+# PostgreSQL/TimescaleDB clients
+asyncpg>=0.28.0
+psycopg2-binary>=2.9.0
+
+# Database ORM and migrations
+SQLAlchemy>=2.0.0
+alembic>=1.12.0
+
+# =============================================================================
+# WEB FRAMEWORK & API
+# =============================================================================
+
+# FastAPI for REST API
 fastapi>=0.100.0
 uvicorn>=0.23.0
+
+# HTTP client
+httpx>=0.24.0
+requests>=2.31.0
+
+# =============================================================================
+# CONFIGURATION & UTILITIES
+# =============================================================================
+
+# Configuration management
 pydantic>=2.0.0
-
-# Database
-asyncpg>=0.29.0
-psycopg2-binary>=2.9.9
-redis>=5.0.1
-sqlalchemy>=2.0.23
-alembic>=1.13.1
-
-# Technical Analysis
-yfinance>=0.2.28
-alpha-vantage>=2.3.1
-ta-lib>=0.6.4
-
-# Machine Learning & AI
-scikit-learn>=1.3.2
-transformers>=4.36.2
-langchain>=0.1.0
-openai>=1.6.1
-
-# Async & Concurrency
-aiofiles>=23.2.1
-celery>=5.3.4
-kombu>=5.3.4
-
-# Configuration & Utilities
-pyyaml>=6.0.1
-loguru>=0.7.2
-
-# HTTP & API
-httpx>=0.25.2
-
-# Data Validation
-marshmallow>=3.20.2
-jsonschema>=4.20.0
-
-# Testing
-pytest>=7.4.3
-pytest-asyncio>=0.21.1
-pytest-cov>=4.1.0
-pytest-mock>=3.12.0
-
-# Development Tools
-black>=23.11.0
-isort>=5.12.0
-flake8>=6.1.0
-mypy>=1.7.1
-pre-commit>=3.6.0
-
-# Monitoring & Logging
-prometheus-client>=0.19.0
-structlog>=23.2.0
-
-# File Processing
-openpyxl>=3.1.2
-xlsxwriter>=3.1.9
-
-# Security
-python-jose[cryptography]>=3.3.0
-
-# Optional: Jupyter for development
-jupyter>=1.0.0
-ipykernel>=6.27.1
-seaborn>=0.13.0
-
-# Optional: WebSocket for real-time data
-websocket-client>=1.6.4
-
-# Optional: Message Queuing
-kafka-python>=2.0.2
-
-# Optional: Caching
-diskcache>=5.6.3
-
-# Optional: Rate Limiting
-ratelimit>=2.2.1
-
-# Optional: Environment Management
+pyyaml>=6.0
+python-dotenv>=1.0.0
 python-decouple>=3.8
+
+# CLI framework
+click>=8.1.0
+
+# Logging
+loguru>=0.7.0
+structlog>=23.0.0
+
+# =============================================================================
+# ASYNC & CONCURRENCY
+# =============================================================================
+
+# Async file operations
+aiofiles>=23.0.0
+
+# Async utilities
+nest-asyncio>=1.5.0
+
+# =============================================================================
+# CACHING & TASK QUEUE
+# =============================================================================
+
+# Redis for caching and task queue
+redis>=4.6.0
+
+# Celery for background tasks
+celery>=5.3.0
+kombu>=5.3.0
+
+# =============================================================================
+# DATA VALIDATION & SERIALIZATION
+# =============================================================================
+
+# Data validation
+marshmallow>=3.20.0
+jsonschema>=4.19.0
+
+# =============================================================================
+# MONITORING & OBSERVABILITY
+# =============================================================================
+
+# Prometheus metrics
+prometheus-client>=0.17.0
+
+# =============================================================================
+# FILE HANDLING
+# =============================================================================
+
+# Excel file support
+openpyxl>=3.1.0
+xlsxwriter>=3.1.0
+
+# =============================================================================
+# SECURITY
+# =============================================================================
+
+# JWT tokens
+python-jose>=3.3.0
+
+# =============================================================================
+# DEVELOPMENT & TESTING
+# =============================================================================
+
+# Jupyter notebook support
+jupyter>=1.0.0
+ipykernel>=6.25.0
+
+# Progress bars
+tqdm>=4.65.0
+
+# Timezone handling
+pytz>=2023.3
+
+# Compression
+lz4>=4.3.0
+
+# =============================================================================
+# WEBSOCKET & REAL-TIME
+# =============================================================================
+
+# WebSocket client
+websocket-client>=1.6.0
+
+# =============================================================================
+# MESSAGE QUEUE
+# =============================================================================
+
+# Kafka support
+kafka-python>=2.0.0
+
+# =============================================================================
+# CACHING
+# =============================================================================
+
+# Disk-based caching
+diskcache>=5.6.0
+
+# =============================================================================
+# RATE LIMITING
+# =============================================================================
+
+# Rate limiting utilities
+ratelimit>=2.2.0
+
+# =============================================================================
+# MACHINE LEARNING (Optional)
+# =============================================================================
+
+# Scikit-learn for ML
+scikit-learn>=1.3.0
+
+# =============================================================================
+# EXTERNAL DATA SOURCES
+# =============================================================================
+
+# Yahoo Finance
+yfinance>=0.2.0
+
+# Alpha Vantage
+alpha-vantage>=2.3.0
+
+# =============================================================================
+# DEVELOPMENT DEPENDENCIES (Optional)
+# =============================================================================
+
+# Testing framework
+pytest>=7.0.0
+pytest-asyncio>=0.21.0
+pytest-cov>=4.0.0
+pytest-mock>=3.10.0
+
+# Code formatting and linting
+black>=23.0.0
+isort>=5.12.0
+flake8>=6.0.0
+mypy>=1.0.0
+
+# Pre-commit hooks
+pre-commit>=3.0.0
+
+# =============================================================================
+# VERSION PINNING FOR STABILITY
+# =============================================================================
+
+# Pin specific versions for critical packages to ensure stability
+# Uncomment and adjust as needed for production deployments
+
+# vectorbt==0.28.1
+# polygon-api-client==1.15.4
+# ib-insync==0.9.86
+# pandas==2.3.3
+# numpy==2.2.6

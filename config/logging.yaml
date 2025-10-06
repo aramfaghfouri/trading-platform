@@ -1,0 +1,192 @@
+# Logging Configuration
+logging:
+  # Log Level
+  level: "INFO"
+  
+  # Log Format
+  format: "{time:YYYY-MM-DD HH:mm:ss.SSS} | {level: <8} | {name}:{function}:{line} - {message}"
+  
+  # Log Rotation
+  rotation: "100 MB"
+  retention: "30 days"
+  compression: "gz"
+    
+  # Log Files
+  files:
+    # Main log file
+    main:
+      path: "logs/trading_platform.log"
+      level: "INFO"
+      format: "{time:YYYY-MM-DD HH:mm:ss.SSS} | {level: <8} | {name}:{function}:{line} - {message}"
+      
+    # Error log file
+    error:
+      path: "logs/errors.log"
+      level: "ERROR"
+      format: "{time:YYYY-MM-DD HH:mm:ss.SSS} | {level: <8} | {name}:{function}:{line} - {message}"
+      
+    # Trading log file
+    trading:
+      path: "logs/trading.log"
+      level: "INFO"
+      format: "{time:YYYY-MM-DD HH:mm:ss.SSS} | {level: <8} | {name}:{function}:{line} - {message}"
+      
+    # Data log file
+    data:
+      path: "logs/data.log"
+      level: "INFO"
+      format: "{time:YYYY-MM-DD HH:mm:ss.SSS} | {level: <8} | {name}:{function}:{line} - {message}"
+      
+    # Performance log file
+    performance:
+      path: "logs/performance.log"
+      level: "INFO"
+      format: "{time:YYYY-MM-DD HH:mm:ss.SSS} | {level: <8} | {name}:{function}:{line} - {message}"
+      
+  # Console Logging
+  console:
+    enabled: true
+    level: "INFO"
+    format: "<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | <level>{level: <8}</level> | <cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - <level>{message}</level>"
+    
+  # Structured Logging
+  structured:
+    enabled: true
+    format: "json"
+    include_extra: true
+    
+  # Log Categories
+  categories:
+    # System logs
+    system:
+      enabled: true
+      level: "INFO"
+      file: "logs/system.log"
+      
+    # Trading logs
+    trading:
+      enabled: true
+      level: "INFO"
+      file: "logs/trading.log"
+      
+    # Data logs
+    data:
+      enabled: true
+      level: "INFO"
+      file: "logs/data.log"
+      
+    # Risk logs
+    risk:
+      enabled: true
+      level: "WARNING"
+      file: "logs/risk.log"
+      
+    # Performance logs
+    performance:
+      enabled: true
+      level: "INFO"
+      file: "logs/performance.log"
+      
+    # Error logs
+    errors:
+      enabled: true
+      level: "ERROR"
+      file: "logs/errors.log"
+      
+  # Log Filters
+  filters:
+    # Filter out sensitive information
+    sensitive_data:
+      enabled: true
+      patterns:
+        - "password"
+        - "api_key"
+        - "secret"
+        - "token"
+      replacement: "***REDACTED***"
+      
+    # Filter out debug logs in production
+    production:
+      enabled: false  # Will be enabled in production
+      level: "INFO"
+      
+  # Log Handlers
+  handlers:
+    # File handler
+    file:
+      enabled: true
+      max_bytes: 10485760  # 10MB
+      backup_count: 5
+      
+    # Console handler
+    console:
+      enabled: true
+      colorize: true
+      
+    # Email handler (for critical errors)
+    email:
+      enabled: false  # Will be configured in production
+      smtp_server: "smtp.gmail.com"
+      smtp_port: 587
+      username: ""
+      password: ""
+      to_addresses: []
+      subject: "Trading Platform Critical Error"
+      
+    # Slack handler (for alerts)
+    slack:
+      enabled: false  # Will be configured in production
+      webhook_url: ""
+      channel: "#trading-alerts"
+      
+  # Log Context
+  context:
+    # Add request ID to logs
+    request_id: true
+    
+    # Add user ID to logs
+    user_id: true
+    
+    # Add session ID to logs
+    session_id: true
+    
+    # Add correlation ID to logs
+    correlation_id: true
+    
+  # Performance Logging
+  performance:
+    # Log slow queries
+    slow_queries:
+      enabled: true
+      threshold: 1.0  # seconds
+      
+    # Log memory usage
+    memory_usage:
+      enabled: true
+      interval: 300  # 5 minutes
+      
+    # Log CPU usage
+    cpu_usage:
+      enabled: true
+      interval: 300  # 5 minutes
+      
+  # Audit Logging
+  audit:
+    # Log all trading activities
+    trading_activities:
+      enabled: true
+      include_orders: true
+      include_positions: true
+      include_pnl: true
+      
+    # Log all data access
+    data_access:
+      enabled: true
+      include_queries: true
+      include_modifications: true
+      
+    # Log all configuration changes
+    configuration_changes:
+      enabled: true
+      include_file_changes: true
+      include_runtime_changes: true

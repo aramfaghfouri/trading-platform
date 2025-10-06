@@ -1,0 +1,102 @@
+# Interactive Brokers Configuration
+ibkr:
+  # Connection Settings
+  connection:
+    host: "127.0.0.1"
+    port: 7497  # TWS: 7497, IB Gateway: 4001
+    client_id: 1
+    timeout: 30
+    reconnect_attempts: 5
+    reconnect_delay: 5
+    
+  # Trading Settings
+  trading:
+    # Paper Trading (for development)
+    paper_trading: true
+    paper_port: 7497
+    
+    # Live Trading (for production)
+    live_trading: false
+    live_port: 7496
+    
+    # Order Settings
+    order_settings:
+      default_order_type: "MKT"
+      default_time_in_force: "DAY"
+      max_order_size: 10000
+      min_order_size: 1
+      
+  # Account Settings
+  account:
+    # Account Information
+    account_id: "your_ibkr_account_id_here"  # Set via IBKR_ACCOUNT_ID environment variable
+    
+    # Risk Management
+    risk_management:
+      max_position_size: 0.1  # 10% of portfolio per position
+      max_daily_loss: 0.05    # 5% daily loss limit
+      max_drawdown: 0.15      # 15% maximum drawdown
+      position_sizing: "fixed"  # fixed, kelly, volatility
+      
+  # Market Data Settings
+  market_data:
+    # Data Types
+    data_types:
+      - "trades"
+      - "quotes"
+      - "bars"
+      - "trades_nbbo"
+      
+    # Timeframes
+    timeframes:
+      - "1 min"
+      - "5 mins"
+      - "15 mins"
+      - "1 hour"
+      - "1 day"
+      
+    # Real-time Data
+    realtime:
+      enabled: true
+      snapshot: true
+      streaming: true
+      
+  # Order Management
+  order_management:
+    # Order Types
+    supported_order_types:
+      - "MKT"      # Market
+      - "LMT"      # Limit
+      - "STP"      # Stop
+      - "STP LMT"  # Stop Limit
+      - "TRAIL"    # Trailing Stop
+      
+    # Order Validation
+    validation:
+      check_margin: true
+      check_balance: true
+      validate_symbol: true
+      check_market_hours: true
+      
+  # Portfolio Management
+  portfolio:
+    # Position Tracking
+    position_tracking:
+      enabled: true
+      update_interval: 1  # seconds
+      sync_with_database: true
+      
+    # P&L Tracking
+    pnl_tracking:
+      enabled: true
+      update_interval: 5  # seconds
+      track_unrealized: true
+      track_realized: true
+      
+  # Logging and Monitoring
+  logging:
+    log_level: "INFO"
+    log_orders: true
+    log_positions: true
+    log_pnl: true
+    log_errors: true

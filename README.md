@@ -1,36 +1,38 @@
-# Live Trading Platform
+# Trading Platform
 
-A sophisticated live trading system built with QuantConnect Lean integration, supporting multiple strategies with flexible signal aggregation and real-time execution via Interactive Brokers.
+A comprehensive trading platform built with VectorBT, Polygon.io, and Interactive Brokers integration, designed for algorithmic trading, backtesting, and live execution.
 
 ## 🚀 Features
 
-- **Multi-Strategy Support**: Run up to 20+ trading strategies simultaneously
-- **QuantConnect Lean Integration**: Leverage Lean for strategy development and backtesting
-- **Flexible Signal Aggregation**: Multiple aggregation functions (weighted average, majority vote, strength threshold)
-- **Real-Time Trading**: Live execution via Interactive Brokers TWS API
-- **Advanced Risk Management**: Position limits, drawdown protection, and risk controls
-- **TradingView-Style Metrics**: Comprehensive performance tracking and analysis
-- **Command-Line Interface**: Full CLI management for all operations
-- **Microservices Architecture**: Scalable, fault-tolerant design
+- **VectorBT Integration**: Advanced backtesting, portfolio optimization, and strategy development
+- **Polygon.io Data Collection**: Historical and real-time market data with minute-level precision
+- **Interactive Brokers Integration**: Live trading execution and portfolio management
+- **TimescaleDB Storage**: High-performance time-series database for market data
+- **Flexible Configuration**: YAML-based configuration with environment variable overrides
+- **Data Quality Validation**: Built-in data validation and outlier detection
+- **Rate Limiting**: Intelligent API rate limiting and error handling
 - **Docker Support**: Containerized deployment and development
+- **Modular Architecture**: Clean separation of concerns with organized code structure
 
 ## 🏗️ Architecture
 
 ### Core Components
 
-- **Strategy Management**: QuantConnect Lean strategy execution and monitoring
-- **Signal Processing**: Flexible signal aggregation and trigger engine
+- **Data Collection**: Polygon.io integration for historical and real-time market data
+- **Data Storage**: TimescaleDB for high-performance time-series data storage
+- **Strategy Framework**: VectorBT-based strategy development and backtesting
 - **Trading Execution**: Interactive Brokers integration for live trading
-- **Portfolio Management**: Real-time portfolio tracking and risk management
-- **Data Management**: TimescaleDB for time-series data, PostgreSQL for metadata
+- **Configuration Management**: YAML-based configuration with Pydantic validation
+- **Data Quality**: Built-in validation, outlier detection, and quality checks
 
 ### Technology Stack
 
-- **Backend**: Python 3.11+ with FastAPI
-- **Database**: TimescaleDB (time-series), PostgreSQL (metadata), Redis (caching)
+- **Backend**: Python 3.11+ with asyncio
+- **Database**: TimescaleDB (time-series data with compression and continuous aggregates)
+- **Data Source**: Polygon.io API for market data
 - **Trading**: Interactive Brokers TWS API via ib_insync
-- **Strategy Engine**: QuantConnect Lean (Python API)
-- **Frontend**: React with Lightweight Charts
+- **Strategy Engine**: VectorBT for backtesting and portfolio optimization
+- **Configuration**: Pydantic models with YAML configuration files
 - **Deployment**: Docker & Docker Compose
 
 ## 📋 Project Status
@@ -43,8 +45,8 @@ See [README-Track.md](README-Track.md) for detailed progress tracking and implem
 
 - Python 3.11+
 - Docker & Docker Compose
+- Polygon.io API key
 - Interactive Brokers account (paper trading recommended)
-- QuantConnect account
 
 ### Installation
 
@@ -64,174 +66,218 @@ See [README-Track.md](README-Track.md) for detailed progress tracking and implem
    pip install -r requirements.txt
    ```
 
-3. **Configure databases**
+3. **Configure environment variables**
    ```bash
-   # Start databases with Docker Compose
-   docker-compose up -d
+   # Copy environment template
+   cp env.example .env
+   
+   # Edit .env with your API keys
+   nano .env
    ```
 
-4. **Configure Interactive Brokers**
-   - Install Trader Workstation (TWS)
-   - Enable API connections
-   - Configure paper trading account
-
-5. **Configure strategies**
+4. **Start TimescaleDB**
    ```bash
-   # Copy and edit configuration files
-   cp config/strategies.yaml.example config/strategies.yaml
-   cp config/trigger_rules.yaml.example config/trigger_rules.yaml
+   # Start TimescaleDB with Docker Compose
+   docker-compose up -d timescaledb
+   ```
+
+5. **Configure data collection**
+   ```bash
+   # Edit project configuration
+   nano project-setup.toml
    ```
 
 ### Running the System
 
-1. **Start all services**
+1. **Collect market data**
    ```bash
-   # Start all services
-   python -m services.cli.main start-all
+   # Collect historical data for configured symbols
+   python scripts/collect_market_data.py
    ```
 
-2. **Manage strategies**
+2. **Validate configuration**
    ```bash
-   # List available strategies
-   python -m services.cli.main strategy list
-   
-   # Start a strategy
-   python -m services.cli.main strategy start <strategy-id>
-   
-   # Stop a strategy
-   python -m services.cli.main strategy stop <strategy-id>
+   # Test configuration and database connection
+   python scripts/validate_config.py
    ```
 
-3. **Monitor trading**
+3. **Access database**
    ```bash
-   # View portfolio status
-   python -m services.cli.main portfolio status
-   
-   # Monitor orders
-   python -m services.cli.main order list
-   
-   # View signals
-   python -m services.cli.main signal list
+   # Connect to TimescaleDB
+   docker exec -it trading-platform-timescaledb-1 psql -U trading_user -d trading_platform
+   ```
+
+4. **View collected data**
+   ```sql
+   -- Check data summary
+   SELECT symbol, COUNT(*) as records, 
+          MIN(timestamp) as earliest, 
+          MAX(timestamp) as latest 
+   FROM ohlcv_data 
+   GROUP BY symbol 
+   ORDER BY records DESC;
    ```
 
 ## 📁 Project Structure
 
 ```
 trading-platform/
-├── services/                 # Microservices
-│   ├── strategy-manager/     # Lean strategy execution
-│   ├── signal-processor/     # Signal aggregation & triggers
-│   ├── order-manager/        # IBKR trading execution
-│   ├── risk-manager/         # Risk management
-│   ├── portfolio-manager/    # Portfolio tracking
-│   ├── data-manager/         # Data ingestion & storage
-│   └── cli/                  # Command-line interface
-├── shared/                   # Shared utilities
-│   ├── models/              # Data models
-│   ├── utils/               # Common utilities
-│   └── config/              # Configuration management
-├── strategies/              # Trading strategies
-├── frontend/                # React dashboard
-├── config/                  # Configuration files
-└── tests/                   # Test suites
+├── src/                     # Source code
+│   ├── core/               # Core functionality
+│   │   ├── config_loader.py    # Configuration management
+│   │   └── config_models.py    # Pydantic models
+│   ├── data_collectors/    # Data collection modules
+│   │   └── polygon/        # Polygon.io integration
+│   │       ├── collect_data.py     # Main collection script
+│   │       ├── enhanced_collector.py # Data collector class
+│   │       ├── data_storage.py     # Database storage
+│   │       ├── collection_manager.py # Collection orchestration
+│   │       └── utils.py           # Utility functions
+│   ├── brokers/            # Broker integrations
+│   │   └── ibkr/           # Interactive Brokers
+│   └── strategies/         # Trading strategies
+├── config/                 # Configuration files
+│   ├── database.yaml       # Database configuration
+│   ├── polygon.yaml        # Polygon.io configuration
+│   ├── ibkr.yaml          # Interactive Brokers config
+│   └── main.yaml          # Main configuration
+├── scripts/                # Utility scripts
+│   ├── collect_market_data.py # Main data collection CLI
+│   └── validate_config.py     # Configuration validation
+├── docker/                 # Docker configuration
+│   └── timescaledb/        # TimescaleDB setup
+├── docs/                   # Documentation
+├── tests/                  # Test suites
+└── project-setup.toml      # Project configuration
 ```
 
 ## 🔧 Configuration
 
-### Strategy Configuration
+### Environment Variables
 
-Define your trading strategies in `config/strategies.yaml`:
+Set up your API keys in `.env`:
 
-```yaml
-strategies:
-  - id: "momentum_strategy_1"
-    name: "Momentum Strategy 1"
-    lean_file: "strategies/momentum_strategy.py"
-    symbols: ["SPY", "QQQ", "IWM"]
-    enabled: true
-    risk_limits:
-      max_position_size: 5000
-      max_daily_loss: 1000
-    signal_functions: ["weighted_average", "strength_threshold"]
+```bash
+# Database Configuration
+DB_HOST=localhost
+DB_PORT=5432
+DB_NAME=trading_platform
+DB_USER=trading_user
+DB_PASSWORD=trading_password
+
+# Polygon.io API
+POLYGON_API_KEY=your_polygon_api_key_here
+
+# Interactive Brokers
+IBKR_ACCOUNT_ID=your_account_id
+IBKR_HOST=127.0.0.1
+IBKR_PORT=7497
+IBKR_PAPER_TRADING=true
 ```
 
-### Trigger Rules
+### Project Configuration
 
-Configure signal triggers in `config/trigger_rules.yaml`:
+Configure data collection in `project-setup.toml`:
 
-```yaml
-trigger_rules:
-  SPY:
-    - type: "multiple_signals"
-      required_signals: 2
-      time_window: "5m"
-    - type: "strength_threshold"
-      threshold: 0.7
+```toml
+[data_collection]
+time_interval = "minute"
+start_date = "2024-10-05"
+end_date = "2025-10-04"
+tickers = ["AAPL", "GOOGL", "MSFT", "TSLA", "AMZN"]
+rate_limit_delay = 13
 ```
 
-## 📊 Signal Aggregation
+### YAML Configuration
 
-The system supports multiple signal aggregation methods:
+Main configuration files in `config/`:
 
-- **Weighted Average**: Average signal strength across strategies
-- **Majority Vote**: Democratic decision based on signal count
-- **Strength Threshold**: Trade when any signal exceeds threshold
-- **Custom Functions**: User-defined aggregation logic
+- `database.yaml` - TimescaleDB settings
+- `polygon.yaml` - Polygon.io API configuration
+- `ibkr.yaml` - Interactive Brokers settings
+- `strategies.yaml` - Strategy definitions
+- `trading.yaml` - Trading parameters
 
-## 🛡️ Risk Management
+## 📊 Data Collection Features
 
-Comprehensive risk controls:
+The system provides comprehensive data collection capabilities:
 
-- **Position Limits**: Per-symbol and portfolio-wide limits
-- **Daily Loss Limits**: Stop trading on excessive losses
-- **Drawdown Protection**: Automatic trading halt on drawdown
-- **Concentration Limits**: Prevent over-concentration in single assets
+- **Minute-Level Data**: High-frequency market data collection
+- **Data Quality Validation**: Built-in validation and outlier detection
+- **Rate Limiting**: Intelligent API rate limiting to respect Polygon.io limits
+- **Error Handling**: Robust error handling and retry mechanisms
+- **Data Storage**: Efficient storage in TimescaleDB with compression
+- **Duplicate Prevention**: Automatic duplicate detection and prevention
 
-## 📈 Performance Metrics
+## 🛡️ Data Quality & Validation
 
-TradingView-style performance tracking:
+Comprehensive data quality controls:
 
-- **Returns**: Daily, weekly, monthly, and annual returns
-- **Sharpe Ratio**: Risk-adjusted returns
-- **Maximum Drawdown**: Largest peak-to-trough decline
-- **Win Rate**: Percentage of profitable trades
-- **Average Trade**: Average profit/loss per trade
+- **Price Validation**: OHLC price relationship validation
+- **Volume Thresholds**: Minimum volume requirements
+- **Outlier Detection**: Statistical outlier detection using IQR method
+- **Price Deviation**: Maximum price change validation
+- **Data Completeness**: Required field validation
+
+## 📈 Database Features
+
+TimescaleDB-powered data storage:
+
+- **Hypertables**: Automatic time-series partitioning
+- **Compression**: Data compression for storage efficiency
+- **Continuous Aggregates**: Pre-computed aggregations (1m, 5m bars)
+- **Retention Policies**: Automatic data retention management
+- **Indexes**: Optimized indexes for fast queries
 
 ## 🧪 Testing
 
-### Backtesting
+### Data Collection Testing
 
-Use QuantConnect Lean for strategy backtesting:
+Test data collection and storage:
 
 ```bash
-# Run backtest for a strategy
-python -m services.cli.main strategy backtest <strategy-id> --start-date 2023-01-01 --end-date 2023-12-31
+# Validate configuration
+python scripts/validate_config.py
+
+# Test data collection for a single symbol
+python -c "
+import asyncio
+from src.data_collectors.polygon import collect_symbol_data
+asyncio.run(collect_symbol_data('AAPL', '2024-10-01', '2024-10-02'))
+"
 ```
 
-### Paper Trading
+### Database Testing
 
-Test live execution with paper trading:
+Test database connectivity and data:
 
 ```bash
-# Enable paper trading mode
-python -m services.cli.main config set paper_trading true
+# Connect to TimescaleDB
+docker exec -it trading-platform-timescaledb-1 psql -U trading_user -d trading_platform
+
+# Check data quality
+SELECT symbol, COUNT(*) as records, 
+       MIN(timestamp) as earliest, 
+       MAX(timestamp) as latest,
+       AVG(volume) as avg_volume
+FROM ohlcv_data 
+GROUP BY symbol;
 ```
 
 ## 🚨 Monitoring & Alerts
 
-- **System Health**: Monitor all services and connections
-- **Performance Alerts**: Notify on significant P&L changes
-- **Error Alerts**: Immediate notification of system errors
-- **Risk Alerts**: Warn when approaching risk limits
+- **Data Quality Monitoring**: Track data validation failures and outliers
+- **API Rate Limiting**: Monitor API usage and rate limit compliance
+- **Database Performance**: Track query performance and storage usage
+- **Collection Status**: Monitor data collection progress and errors
 
 ## 📚 Documentation
 
-- [Architecture Overview](docs/architecture.md)
-- [Strategy Development](docs/strategy-development.md)
-- [Signal Aggregation](docs/signal-aggregation.md)
-- [Risk Management](docs/risk-management.md)
-- [API Reference](docs/api-reference.md)
-- [Troubleshooting](docs/troubleshooting.md)
+- [Database Schema](docs/database-schema.md) - Complete database schema documentation
+- [Configuration Guide](docs/configuration.md) - Detailed configuration setup
+- [Data Collection](docs/data-collection.md) - Data collection workflows
+- [API Reference](docs/api-reference.md) - API documentation
+- [Troubleshooting](docs/troubleshooting.md) - Common issues and solutions
 
 ## 🤝 Contributing
 
@@ -257,4 +303,10 @@ This software is for educational and research purposes only. Trading involves su
 
 ---
 
-**Status**: 🚧 In Development | **Version**: 0.1.0 | **Last Updated**: 2024-01-XX
+**Status**: 🚧 Phase 1 - Foundation Complete | **Version**: 0.1.0 | **Last Updated**: 2024-10-05
+
+### Current Status
+- ✅ **Phase 1 Complete**: TimescaleDB setup, Polygon.io integration, data collection
+- 🚧 **Phase 2 In Progress**: VectorBT strategy framework development
+- 📋 **Phase 3 Planned**: Interactive Brokers integration
+- 📋 **Phase 4 Planned**: Live trading and monitoring

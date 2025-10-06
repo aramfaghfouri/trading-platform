@@ -1,0 +1,44 @@
+# Database Configuration
+database:
+  # TimescaleDB/PostgreSQL Configuration
+  postgresql:
+    host: "localhost"
+    port: 5432
+    database: "trading_platform"
+    username: "trading_user"
+    password: "trading_password"
+    ssl_mode: "prefer"
+    pool_size: 10
+    max_overflow: 20
+    pool_timeout: 30
+    pool_recycle: 3600
+    
+  # Connection Pool Settings
+  pool:
+    min_connections: 5
+    max_connections: 20
+    connection_timeout: 30
+    command_timeout: 60
+    
+  # TimescaleDB Specific Settings
+  timescaledb:
+    chunk_time_interval: "1 day"
+    compression_policy: "7 days"
+    retention_policy: "1 year"
+    continuous_aggregates:
+      - name: "cagg_bars_1m"
+        interval: "1 minute"
+        refresh_interval: "30 seconds"
+        lookback: "2 hours"
+      - name: "cagg_bars_5m"
+        interval: "5 minutes"
+        refresh_interval: "1 minute"
+        lookback: "6 hours"
+        
+  # Data Storage Settings
+  storage:
+    enable_compression: true
+    enable_retention: true
+    backup_enabled: true
+    backup_interval: "daily"
+    backup_retention: "30 days"
