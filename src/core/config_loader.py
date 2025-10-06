@@ -8,6 +8,11 @@ YAML files, environment variables, and validation using Pydantic models.
 import os
 import yaml
 from pathlib import Path
+try:
+    import tomllib  # Python 3.11+
+except Exception:  # pragma: no cover
+    tomllib = None
+from pathlib import Path
 from typing import Dict, Any, Optional, Union, Type, TypeVar
 from pydantic import ValidationError
 from loguru import logger
@@ -48,6 +53,16 @@ class ConfigLoader:
             load_dotenv(".env")
             
         self._load_environment_variables()
+
+        # Preload project-setup.toml if present
+        setup_path = Path("project-setup.toml")
+        if setup_path.exists() and tomllib:
+            try:
+                with open(setup_path, 'rb') as f:
+                    self._config_cache['project_setup_toml'] = tomllib.load(f)
+                logger.info("Loaded project-setup.toml")
+            except Exception as e:
+                logger.warning(f"Failed loading project-setup.toml: {e}")
         
     def _load_environment_variables(self) -> None:
         """Load configuration from environment variables."""
@@ -142,6 +157,24 @@ class ConfigLoader:
             raise ConfigurationError(f"Error parsing YAML file {config_path}: {e}")
         except Exception as e:
             raise ConfigurationError(f"Error loading configuration file {config_path}: {e}")
+
+    def load_project_setup(self) -> Dict[str, Any]:
+        """Return parsed project-setup.toml as dict (empty if missing)."""
+        data = self._config_cache.get('project_setup_toml', {})
+        if not data:
+            logger.warning("project-setup.toml not found or tomllib unavailable; returning empty config")
+        return data
+
+    def get_provider_setup(self, provider: str, section: str | None = None) -> Dict[str, Any]:
+        """Get provider-scoped settings from project-setup.toml.
+
+        provider: e.g., 'polygon', 'ibkr'. section: e.g., 'data_collection', 'historical', 'connection'.
+        """
+        setup = self.load_project_setup()
+        node = setup.get(provider, {}) if isinstance(setup, dict) else {}
+        if section and isinstance(node, dict):
+            node = node.get(section, {})
+        return node or {}
     
     def load_and_validate_config(self, config_type: Type[T], config_file: str, 
                                 config_path: Optional[str] = None) -> T:

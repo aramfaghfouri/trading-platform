@@ -132,11 +132,11 @@ collect_data() {
     
     cd "$PROJECT_ROOT"
     
-    # Read configuration from project-setup.toml
-    local time_interval=$(grep 'time_interval' project-setup.toml | cut -d'"' -f2)
-    local start_date=$(grep 'start_date' project-setup.toml | cut -d'"' -f2)
-    local end_date=$(grep 'end_date' project-setup.toml | cut -d'"' -f2)
-    local tickers=$(grep -A 20 'tickers = \[' project-setup.toml | grep -E '^\s*"[A-Z]+"' | sed 's/.*"\([^"]*\)".*/\1/' | tr '\n' ' ')
+    # Read configuration from [polygon.data_collection] in project-setup.toml
+    local time_interval=$(awk -F\" '/^\[polygon\.data_collection\]/{f=1;next} f&&/time_interval/{print $2; exit}' project-setup.toml)
+    local start_date=$(awk -F\" '/^\[polygon\.data_collection\]/{f=1;next} f&&/start_date/{print $2; exit}' project-setup.toml)
+    local end_date=$(awk -F\" '/^\[polygon\.data_collection\]/{f=1;next} f&&/end_date/{print $2; exit}' project-setup.toml)
+    local tickers=$(awk '/^\[polygon\.data_collection\]/{f=1;next} f&&/tickers/{g=1} g{print} g&&/\]/{exit}' project-setup.toml | grep -o '"[^"]\+"' | tr -d '"' | tr '\n' ' ')
     
     print_status "Configuration:"
     print_status "  Time Interval: $time_interval"
@@ -187,12 +187,11 @@ show_status() {
                 MIN(timestamp) as earliest,
                 MAX(timestamp) as latest
             FROM (
-                SELECT symbol, timestamp FROM ohlcv_aapl_1m WHERE 1=0
-                UNION ALL SELECT 'AAPL', timestamp FROM ohlcv_aapl_1m
-                UNION ALL SELECT 'GOOGL', timestamp FROM ohlcv_googl_1m
-                UNION ALL SELECT 'MSFT', timestamp FROM ohlcv_msft_1m
-                UNION ALL SELECT 'TSLA', timestamp FROM ohlcv_tsla_1m
-                UNION ALL SELECT 'AMZN', timestamp FROM ohlcv_amzn_1m
+                SELECT 'AAPL' as symbol, timestamp FROM polygon_ohlcv_aapl_1m
+                UNION ALL SELECT 'GOOGL', timestamp FROM polygon_ohlcv_googl_1m
+                UNION ALL SELECT 'MSFT', timestamp FROM polygon_ohlcv_msft_1m
+                UNION ALL SELECT 'TSLA', timestamp FROM polygon_ohlcv_tsla_1m
+                UNION ALL SELECT 'AMZN', timestamp FROM polygon_ohlcv_amzn_1m
             ) data
             GROUP BY symbol 
             ORDER BY records DESC 
@@ -286,6 +285,43 @@ ib_place_order() {
     print_success "IBKR order command sent"
 }
 
+# IBKR historical collection using settings from project-setup.toml
+ib_collect_historical() {
+    # Extract settings from [ibkr_historical]
+    local tf=$(awk -F\" '/^\[ibkr_historical\]/{f=1;next} f&&/timeframe/{print $2; exit}' project-setup.toml)
+    local start=$(awk -F\" '/^\[ibkr_historical\]/{f=1;next} f&&/start_date/{print $2; exit}' project-setup.toml)
+    local end=$(awk -F\" '/^\[ibkr_historical\]/{f=1;next} f&&/end_date/{print $2; exit}' project-setup.toml)
+    local symbols=$(awk '/^\[ibkr_historical\]/{f=1;next} f&&/symbols/{g=1} g{print} g&&/\]/{exit}' project-setup.toml | grep -o '"[^"]\+"' | tr -d '"' | tr '\n' ' ')
+    if [[ -z "$tf" ]]; then tf="1m"; fi
+    if [[ -z "$start" ]]; then start="2025-09-01"; fi
+    if [[ -z "$end" ]]; then end="2025-09-30"; fi
+    if [[ -z "$symbols" ]]; then symbols="AAPL"; fi
+    print_status "IBKR historical: symbols=[$symbols] ${start}..${end} tf=${tf} (from project-setup.toml)"
+    cd "$PROJECT_ROOT"
+    eval "$(conda shell.bash hook)"
+    conda activate env-trading
+    python - <<PY
+import asyncio
+from src.data_collectors.ibkr.historical import IBKRHistoricalCollector
+
+tf = "${tf}"
+start = "${start}"
+end = "${end}"
+symbols = "${symbols}".split()
+
+async def main():
+    c = IBKRHistoricalCollector()
+    for s in symbols:
+        res = await c.collect_and_store(s, start, end, tf)
+        print({s: res})
+
+asyncio.run(main())
+PY
+    if [[ $? -ne 0 ]]; then
+        print_error "IBKR historical collection failed"; exit 1; fi
+    print_success "IBKR historical collection completed"
+}
+
 # Function to debug the collector
 debug_collector() {
     print_status "Debugging collector functionality..."
@@ -355,6 +391,8 @@ show_help() {
     echo "  --collect-data        Collect data for all configured tickers"
     echo "  --collect-sample      Collect sample data for testing (AAPL, MSFT, GOOGL, TSLA, AMZN)"
     echo "  --validate-config     Validate configuration files"
+    echo "  --collect-hitorical-data [--polygon|--ibkr|--all]"
+    echo "                        Collect historical data per provider"
     echo "  --status              Show system status"
     echo "  --check-database      Check database status in detail"
     echo "  --debug-collector     Debug collector functionality"
@@ -366,6 +404,7 @@ show_help() {
     echo "  --ib-positions        List IBKR positions"
     echo "  --ib-subscribe        Subscribe to realtime (env: IB_SUB_SYMBOL, IB_SUB_SECONDS)"
     echo "  --ib-place-order      Place order (env: LIVE_TRADING_CONFIRM, IB_ORDER_SYMBOL, IB_ORDER_ACTION, IB_ORDER_QTY, IB_ORDER_LIMIT)"
+    echo "  --ib-collect-hist     Collect IBKR historical based on project-setup.toml"
     echo "  --help                Show this help message"
     echo ""
     echo "Examples:"
@@ -416,6 +455,26 @@ main() {
             check_requirements
             validate_config
             ;;
+        --collect-hitorical-data)
+            check_requirements
+            shift || true
+            case "${1:-}" in
+                --polygon)
+                    collect_data
+                    ;;
+                --ibkr)
+                    ib_collect_historical
+                    ;;
+                --all)
+                    collect_data
+                    ib_collect_historical
+                    ;;
+                *)
+                    print_error "Missing or unknown provider. Use --polygon | --ibkr | --all"
+                    exit 1
+                    ;;
+            esac
+            ;;
         --status)
             show_status
             ;;
@@ -445,6 +504,10 @@ main() {
             ;;
         --ib-place-order)
             ib_place_order
+            ;;
+        --ib-collect-hist)
+            check_requirements
+            ib_collect_historical
             ;;
         --help|-h)
             show_help
