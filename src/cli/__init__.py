@@ -1,3 +1,6 @@
+from .ib import ib as ib_cli
+
+__all__ = ["ib_cli"]
 """
 Command-line interface for the trading platform.
 

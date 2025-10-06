@@ -222,6 +222,70 @@ collect_sample_data() {
     fi
 }
 
+# IBKR management helpers (connectivity, positions, subscribe, place order)
+ib_connect() {
+    print_status "Connecting to IBKR (paper) via CLI..."
+    cd "$PROJECT_ROOT"
+    eval "$(conda shell.bash hook)"
+    conda activate env-trading
+    python -m src.cli.ib connect || {
+        print_error "IBKR connect failed"; exit 1; }
+    print_success "IBKR connection successful"
+}
+
+ib_summary() {
+    print_status "Fetching IBKR account summary..."
+    cd "$PROJECT_ROOT"
+    eval "$(conda shell.bash hook)"
+    conda activate env-trading
+    python -m src.cli.ib summary || {
+        print_error "IBKR summary failed"; exit 1; }
+    print_success "IBKR summary retrieved"
+}
+
+ib_positions() {
+    print_status "Fetching IBKR positions..."
+    cd "$PROJECT_ROOT"
+    eval "$(conda shell.bash hook)"
+    conda activate env-trading
+    python -m src.cli.ib positions || {
+        print_error "IBKR positions failed"; exit 1; }
+    print_success "IBKR positions retrieved"
+}
+
+ib_subscribe() {
+    local symbol="${IB_SUB_SYMBOL:-AAPL}"
+    local seconds="${IB_SUB_SECONDS:-60}"
+    print_status "Subscribing to IBKR realtime for ${symbol} (${seconds}s)..."
+    cd "$PROJECT_ROOT"
+    eval "$(conda shell.bash hook)"
+    conda activate env-trading
+    python -m src.cli.ib subscribe --symbol "$symbol" --seconds "$seconds" || {
+        print_error "IBKR subscribe failed"; exit 1; }
+    print_success "IBKR subscribe completed"
+}
+
+ib_place_order() {
+    local symbol="${IB_ORDER_SYMBOL:-AAPL}"
+    local action="${IB_ORDER_ACTION:-BUY}"
+    local qty="${IB_ORDER_QTY:-1}"
+    local limit_arg=""
+    if [[ -n "${IB_ORDER_LIMIT:-}" ]]; then
+        limit_arg="--limit ${IB_ORDER_LIMIT}"
+    fi
+    if [[ "${LIVE_TRADING_CONFIRM:-false}" != "true" ]]; then
+        print_warning "LIVE_TRADING_CONFIRM is not true. Refusing to place orders."
+        exit 1
+    fi
+    print_status "Placing IBKR order: ${action} ${qty} ${symbol} ${IB_ORDER_LIMIT:+at ${IB_ORDER_LIMIT}}"
+    cd "$PROJECT_ROOT"
+    eval "$(conda shell.bash hook)"
+    conda activate env-trading
+    python -m src.cli.ib place-order --symbol "$symbol" --action "$action" --qty "$qty" $limit_arg || {
+        print_error "IBKR order failed"; exit 1; }
+    print_success "IBKR order command sent"
+}
+
 # Function to debug the collector
 debug_collector() {
     print_status "Debugging collector functionality..."
@@ -295,6 +359,13 @@ show_help() {
     echo "  --check-database      Check database status in detail"
     echo "  --debug-collector     Debug collector functionality"
     echo "  --migrate-data        Migrate data from old table structure"
+    echo ""
+    echo "IBKR Broker Commands:"
+    echo "  --ib-connect          Test IBKR connectivity"
+    echo "  --ib-summary          Show IBKR account summary"
+    echo "  --ib-positions        List IBKR positions"
+    echo "  --ib-subscribe        Subscribe to realtime (env: IB_SUB_SYMBOL, IB_SUB_SECONDS)"
+    echo "  --ib-place-order      Place order (env: LIVE_TRADING_CONFIRM, IB_ORDER_SYMBOL, IB_ORDER_ACTION, IB_ORDER_QTY, IB_ORDER_LIMIT)"
     echo "  --help                Show this help message"
     echo ""
     echo "Examples:"
@@ -359,6 +430,21 @@ main() {
         --migrate-data)
             check_requirements
             migrate_data
+            ;;
+        --ib-connect)
+            ib_connect
+            ;;
+        --ib-summary)
+            ib_summary
+            ;;
+        --ib-positions)
+            ib_positions
+            ;;
+        --ib-subscribe)
+            ib_subscribe
+            ;;
+        --ib-place-order)
+            ib_place_order
             ;;
         --help|-h)
             show_help

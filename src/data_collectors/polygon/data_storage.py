@@ -106,10 +106,10 @@ class PolygonDataStorage:
             Table name if successful, None if failed
         """
         try:
-            # First, try to get existing table name
+            -- prefer source-prefixed table if present
             table_name = await conn.fetchval(
-                "SELECT get_ticker_table_name($1, $2, $3)",
-                symbol, data_type, timeframe
+                "SELECT get_source_ticker_table_name($1, $2, $3, $4)",
+                'polygon', symbol, data_type, timeframe
             )
             
             if table_name:
@@ -117,15 +117,15 @@ class PolygonDataStorage:
             
             # If table doesn't exist, create it
             created = await conn.fetchval(
-                "SELECT create_ticker_table($1, $2, $3)",
-                symbol, data_type, timeframe
+                "SELECT create_source_ticker_table($1, $2, $3, $4)",
+                'polygon', symbol, data_type, timeframe
             )
             
             if created:
                 # Get the newly created table name
                 table_name = await conn.fetchval(
-                    "SELECT get_ticker_table_name($1, $2, $3)",
-                    symbol, data_type, timeframe
+                    "SELECT get_source_ticker_table_name($1, $2, $3, $4)",
+                    'polygon', symbol, data_type, timeframe
                 )
                 logger.info(f"Created new table {table_name} for {symbol}")
                 return table_name
@@ -358,7 +358,7 @@ class PolygonDataStorage:
                         last_updated = NOW()
                 """, 
                 symbol,
-                f"ohlcv_{symbol.lower()}_1m",  # Default table name
+                f"polygon_ohlcv_{symbol.lower()}_1m",
                 'ohlcv',
                 '1m',
                 result.get('active', True),

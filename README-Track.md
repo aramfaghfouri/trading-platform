@@ -350,6 +350,7 @@ This document tracks the progress of implementing the live trading platform with
 
 **Infrastructure & Setup:**
 - ✅ TimescaleDB database with hypertables, compression, and continuous aggregates
+- ✅ Source-prefixed table naming (`<source>_ohlcv_<symbol>_<tf>`) and migration script
 - ✅ Dynamic TimescaleDB port via `.env` (`TIMESCALEDB_PORT`) and docker-compose `${TIMESCALEDB_PORT:-6432}` binding
 - ✅ Complete project structure with organized modules
 - ✅ Comprehensive dependency management with requirements files

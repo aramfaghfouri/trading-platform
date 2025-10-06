@@ -45,6 +45,23 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+-- Source-aware helpers: prefer these for new data
+CREATE OR REPLACE FUNCTION get_source_ticker_table_name(
+    p_source VARCHAR(20),
+    p_symbol VARCHAR(10),
+    p_data_type VARCHAR(20) DEFAULT 'ohlcv',
+    p_timeframe VARCHAR(10) DEFAULT '1m'
+) RETURNS VARCHAR(50) AS $$
+BEGIN
+    RETURN (SELECT table_name 
+            FROM ticker_registry 
+            WHERE symbol = p_symbol 
+            AND data_type = p_data_type 
+            AND timeframe = p_timeframe
+            AND table_name = LOWER(p_source) || '_' || p_data_type || '_' || LOWER(p_symbol) || '_' || p_timeframe);
+END;
+$$ LANGUAGE plpgsql;
+
 -- Create function to create tables for new tickers
 CREATE OR REPLACE FUNCTION create_ticker_table(
     p_symbol VARCHAR(10),
@@ -108,6 +125,75 @@ BEGIN
     -- Register in ticker registry
     INSERT INTO ticker_registry (symbol, table_name, data_type, timeframe)
     VALUES (p_symbol, v_table_name, p_data_type, p_timeframe);
+    
+    RETURN TRUE;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE FUNCTION create_source_ticker_table(
+    p_source VARCHAR(20),
+    p_symbol VARCHAR(10),
+    p_data_type VARCHAR(20) DEFAULT 'ohlcv',
+    p_timeframe VARCHAR(10) DEFAULT '1m'
+) RETURNS BOOLEAN AS $$
+DECLARE
+    v_table_name VARCHAR(50);
+    sql_statement TEXT;
+BEGIN
+    -- Generate table name with source prefix
+    v_table_name := LOWER(p_source) || '_' || p_data_type || '_' || LOWER(p_symbol) || '_' || p_timeframe;
+    
+    -- Check if table already exists
+    IF EXISTS (SELECT 1 FROM information_schema.tables 
+               WHERE table_name = v_table_name) THEN
+        RETURN FALSE;
+    END IF;
+    
+    -- Create the table with data_source default set to the source
+    sql_statement := format('
+        CREATE TABLE %I (
+            timestamp TIMESTAMPTZ NOT NULL PRIMARY KEY,
+            open DECIMAL(10,4) NOT NULL,
+            high DECIMAL(10,4) NOT NULL,
+            low DECIMAL(10,4) NOT NULL,
+            close DECIMAL(10,4) NOT NULL,
+            volume BIGINT NOT NULL DEFAULT 0,
+            vwap DECIMAL(10,4),
+            transactions INTEGER,
+            trade_count INTEGER,
+            is_complete BOOLEAN DEFAULT TRUE,
+            data_source VARCHAR(20) DEFAULT ''%s'',
+            created_at TIMESTAMPTZ DEFAULT NOW(),
+            updated_at TIMESTAMPTZ DEFAULT NOW()
+        )', v_table_name, LOWER(p_source));
+    
+    EXECUTE sql_statement;
+    
+    -- Convert to hypertable
+    EXECUTE format('
+        SELECT create_hypertable(''%I'', ''timestamp'',
+            chunk_time_interval => INTERVAL ''1 day'',
+            if_not_exists => TRUE)', v_table_name);
+    
+    -- Add compression policy
+    EXECUTE format('
+        ALTER TABLE %I SET (timescaledb.compress, 
+            timescaledb.compress_segmentby = ''timestamp'')', v_table_name);
+    
+    -- Add compression policy
+    EXECUTE format('
+        SELECT add_compression_policy(''%I'', INTERVAL ''7 days'', 
+            if_not_exists => TRUE)', v_table_name);
+    
+    -- Add retention policy
+    EXECUTE format('
+        SELECT add_retention_policy(''%I'', INTERVAL ''1 year'', 
+            if_not_exists => TRUE)', v_table_name);
+    
+    -- Register in ticker registry
+    INSERT INTO ticker_registry (symbol, table_name, data_type, timeframe)
+    VALUES (p_symbol, v_table_name, p_data_type, p_timeframe)
+    ON CONFLICT (symbol) DO UPDATE SET table_name = EXCLUDED.table_name, last_updated = NOW();
     
     RETURN TRUE;
 END;

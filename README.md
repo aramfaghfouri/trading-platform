@@ -153,6 +153,63 @@ The `manage_tp.sh` script provides convenient commands:
 - `--status` - Show system status
 - `--help` - Show help message
 
+#### IB Paper Trading Quick Checks
+
+```bash
+# 0) Ensure TWS/IB Gateway (paper) is running, API enabled (7497)
+
+# 1) Env safety: refuse orders unless explicitly confirmed
+export LIVE_TRADING_CONFIRM=false
+
+# 2) Connectivity test
+python -m src.cli.ib connect
+
+# 3) Account summary / positions
+python -m src.cli.ib summary
+python -m src.cli.ib positions
+
+# 4) Real-time ticks for 60s
+python -m src.cli.ib subscribe --symbol AAPL --seconds 60
+
+# 5) Paper order (requires LIVE_TRADING_CONFIRM=true)
+export LIVE_TRADING_CONFIRM=true
+python -m src.cli.ib place-order --symbol AAPL --action BUY --qty 1 --limit 1.00
+```
+
+## 📚 Data Model and Table Naming
+
+- Source-prefixed table convention: `<source>_<data_type>_<symbol>_<timeframe>`
+  - Examples: `polygon_ohlcv_aapl_1m`, `ibkr_ohlcv_msft_1m`
+- Registry: `ticker_registry.table_name` stores the full source-prefixed name.
+- New tables are created via helper functions in the DB init:
+  - `create_source_ticker_table(source, symbol, data_type, timeframe)`
+  - `get_source_ticker_table_name(source, symbol, data_type, timeframe)`
+
+### Rename Existing Tables
+
+We provide a migration script to rename existing non-prefixed OHLCV tables to `polygon_...` without deleting data:
+
+```bash
+# DB must be running
+./manage_tp.sh --start-database
+
+# Run rename script (in-place, idempotent)
+docker cp scripts/rename_tables_to_source_prefix.sql trading_timescaledb:/rename_tables_to_source_prefix.sql
+docker exec -i trading_timescaledb psql -U trading_user -d trading_platform -f /rename_tables_to_source_prefix.sql
+```
+
+## 🔌 Providers and Brokers Architecture
+
+- Historical providers (e.g., Polygon) implement `HistoricalProviderBase`.
+- Realtime providers (e.g., IBKR) implement `RealtimeProviderBase`.
+- Trade executors (e.g., IBKR) implement `TradeExecutorBase`.
+
+Key modules:
+- `src/data_pipeline/base.py`: interfaces
+- `src/data_collectors/polygon/provider.py`: wraps existing Polygon collector for historical pulls
+- `src/brokers/ibkr/realtime.py`: realtime subscribe/unsubscribe
+- `src/brokers/ibkr/trade_executor.py`: order placement/status
+
 ## 📁 Project Structure
 
 ```
