@@ -5,37 +5,73 @@ Consolidated from multiple entry points for simplicity
 """
 
 import asyncio
-import sys
 import argparse
-from pathlib import Path
 from datetime import datetime, timedelta, timezone
-from typing import List, Dict, Any, Optional
+from typing import List
 
-# Add src to path for imports
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-
-from data_collectors.polygon.collect_data import collect_and_store_data_working_approach
-from data_collectors.polygon.enhanced_collector import PolygonDataCollector, Timeframe
-from data_collectors.polygon.data_storage import PolygonDataStorage
-from data_collectors.polygon.collection_manager import collect_and_store_data
+from .enhanced_collector import PolygonDataCollector, Timeframe
+from .data_storage import PolygonDataStorage
+from .collection_manager import collect_and_store_data
+from src.core.config_loader import ConfigLoader
 from loguru import logger
 
 
 async def collect_market_data():
-    """Main data collection function using the working approach."""
+    """Main data collection function leveraging the collection manager."""
     try:
         logger.info("Starting market data collection...")
-        
-        # Use the working approach that handles table creation and database integration
-        success = await collect_and_store_data_working_approach()
-        
-        if success:
-            logger.info("Market data collection completed successfully!")
-            return True
-        else:
-            logger.error("Market data collection failed!")
+
+        loader = ConfigLoader()
+        polygon_cfg = loader.get_provider_setup('polygon', 'data_collection') or {}
+
+        symbols = polygon_cfg.get('symbols') or []
+        if not symbols:
+            logger.error("No symbols configured for Polygon data collection")
             return False
-            
+
+        timeframe_config = str(polygon_cfg.get('time_interval', '1day')).lower()
+        timeframe_aliases = {
+            'minute': '1min',
+            '1minute': '1min',
+            '1m': '1min',
+            '5minute': '5min',
+            '5m': '5min',
+            '15minute': '15min',
+            '15m': '15min',
+            '30minute': '30min',
+            '30m': '30min',
+            'hour': '1hour',
+            '1hour': '1hour',
+            '2hour': '2hour',
+            '4hour': '4hour',
+            'day': '1day',
+            'daily': '1day',
+        }
+        timeframe_value = timeframe_aliases.get(timeframe_config, timeframe_config)
+        timeframe = Timeframe(timeframe_value) if timeframe_value in Timeframe._value2member_map_ else Timeframe.DAY_1
+
+        start_date = polygon_cfg.get('start_date')
+        end_date = polygon_cfg.get('end_date')
+
+        if not start_date or not end_date:
+            logger.error("Start and end dates must be configured for Polygon data collection")
+            return False
+
+        stats = await collect_and_store_data(
+            symbols=symbols,
+            start_date=start_date,
+            end_date=end_date,
+            timeframe=timeframe,
+            max_concurrent=polygon_cfg.get('max_concurrent', 5)
+        )
+
+        success = stats.get("completed_tasks", 0) > 0
+        if success:
+            logger.info("Market data collection completed successfully")
+        else:
+            logger.error("Market data collection finished without successful tasks")
+        return success
+
     except Exception as e:
         logger.error(f"Market data collection failed: {e}")
         return False

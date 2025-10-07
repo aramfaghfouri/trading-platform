@@ -321,7 +321,10 @@ class PolygonCollectionManager:
                 return await self.execute_task(task_id)
         
         # Execute tasks concurrently
-        task_ids = [task.symbol for task in batch.tasks]
+        task_ids = [
+            f"{task.symbol}_{task.start_date.strftime('%Y%m%d')}_{task.end_date.strftime('%Y%m%d')}_{task.timeframe.value}"
+            for task in batch.tasks
+        ]
         tasks = [execute_with_semaphore(task_id) for task_id in task_ids]
         
         try:

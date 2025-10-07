@@ -27,9 +27,6 @@ from .collection_manager import (
     collect_symbol_range
 )
 
-# Main collection script
-from .main import main as collect_market_data
-
 __all__ = [
     # Enhanced Collector
     "PolygonDataCollector",
@@ -55,6 +52,4 @@ __all__ = [
     "collect_and_store_data",
     "collect_symbol_range",
     
-    # Main Collection Script
-    "collect_market_data",
 ]

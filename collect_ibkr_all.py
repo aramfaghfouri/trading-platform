@@ -4,9 +4,15 @@
 import asyncio
 import tomllib
 from tqdm import tqdm
+from loguru import logger # Ensure loguru is imported and used
+
 from src.data_collectors.ibkr.historical import IBKRHistoricalCollector
 from src.data_collectors.ibkr.client import IBKRDataClient
-from src.data_collectors.ibkr.client import segment_date_range # Import segment_date_range
+from src.data_collectors.ibkr.client import segment_date_range
+
+# Configure logger if necessary (loguru is already configured by default)
+# logger.remove() # Uncomment if you want to remove default handlers
+# logger.add(sys.stderr, level="DEBUG") # Example: Add specific handler
 
 with open('project-setup.toml', 'rb') as f:
     cfg = tomllib.load(f)
@@ -72,6 +78,7 @@ async def main():
                         symbol_errors.append(res.get('error', 'Unknown error'))
                 except Exception as e:
                     symbol_errors.append(str(e))
+                    logger.exception("Full traceback for %s during segment %s to %s:", symbol, seg_start, seg_end) # Corrected traceback logging
             
             final_res = {
                 'success': True if not symbol_errors else False,

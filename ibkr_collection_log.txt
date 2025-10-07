@@ -1,0 +1,23 @@
+[0;34m[INFO][0m Reading IBKR settings from project-setup.toml and collecting historical data...
+2025-10-07 02:20:53.750 | DEBUG    | src.core.config_loader:_load_environment_variables:125 - Loaded environment variable DATABASE_URL -> database_url
+2025-10-07 02:20:53.750 | DEBUG    | src.core.config_loader:_load_environment_variables:125 - Loaded environment variable POLYGON_API_KEY -> polygon_api_key
+2025-10-07 02:20:53.756 | INFO     | src.core.config_loader:__init__:63 - Loaded project-setup.toml
+2025-10-07 02:20:53.898 | DEBUG    | src.core.config_loader:_load_environment_variables:125 - Loaded environment variable DATABASE_URL -> database_url
+2025-10-07 02:20:53.898 | DEBUG    | src.core.config_loader:_load_environment_variables:125 - Loaded environment variable POLYGON_API_KEY -> polygon_api_key
+2025-10-07 02:20:53.901 | INFO     | src.core.config_loader:__init__:63 - Loaded project-setup.toml
+2025-10-07 02:20:53.913 | INFO     | src.core.config_loader:load_yaml_config:153 - Loaded configuration from config/database.yaml
+2025-10-07 02:20:53.915 | INFO     | src.core.config_loader:load_and_validate_config:213 - Validated configuration for DatabaseConfig
+2025-10-07 02:20:53.917 | DEBUG    | src.core.config_loader:_load_environment_variables:125 - Loaded environment variable DATABASE_URL -> database_url
+2025-10-07 02:20:53.918 | DEBUG    | src.core.config_loader:_load_environment_variables:125 - Loaded environment variable POLYGON_API_KEY -> polygon_api_key
+2025-10-07 02:20:53.924 | INFO     | src.core.config_loader:__init__:63 - Loaded project-setup.toml
+API connection failed: ConnectionRefusedError(61, "Connect call failed ('127.0.0.1', 7497)")
+Make sure API port on TWS/IBG is open
+📊 Configuration:
+   Timeframe: 1m
+   Period: 2023-06-12 to 2025-10-05
+   Symbols: 31 total
+   IBKR: 127.0.0.1:7497 (client_id=102)
+
+❌ Initial connection failed: [Errno 61] Connect call failed ('127.0.0.1', 7497)
+Please ensure IBKR TWS/Gateway is running on port 7497
+[0;32m[SUCCESS][0m IBKR historical collection completed

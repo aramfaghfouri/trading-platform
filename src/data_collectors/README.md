@@ -14,11 +14,11 @@ src/data_collectors/
 │   ├── historical.py         # Historical collector facade
 │   └── main.py               # CLI entry point for IBKR collection
 ├── polygon/                  # Polygon.io collectors
-│   ├── client.py             # API client
 │   ├── collection_manager.py # High-level orchestration
 │   ├── data_storage.py       # Polygon-specific storage interface
 │   ├── enhanced_collector.py # Feature-rich collector
-│   └── main.py               # CLI entry point for polygon collection
+│   ├── main.py               # CLI entry point for polygon collection
+│   └── legacy/               # Archived scripts (collect_data.py, utils, etc.)
 └── requirements.txt         # Collector-specific dependencies
 ```
 
@@ -45,8 +45,8 @@ src/data_collectors/
 
 4. **Run data collection:**
    ```bash
-   # Polygon historical
-   python src/data_collectors/polygon/collect_data.py
+   # Polygon historical (uses configuration-driven manager)
+   python -m data_collectors.polygon.main collect
 
    # IBKR historical (via manage_tp.sh)
    ./manage_tp.sh --collect-hitorical-data --ibkr
