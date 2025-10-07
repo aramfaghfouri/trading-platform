@@ -20,8 +20,8 @@ from ratelimit import limits, sleep_and_retry
 import httpx
 from pydantic import BaseModel, Field
 
-from core.config_loader import get_polygon_config, PolygonConfig
-from core.config_models import PolygonDataQualityConfig
+from src.core.config_loader import get_polygon_config, PolygonConfig
+from src.core.config_models import PolygonDataQualityConfig
 
 
 class DataType(str, Enum):

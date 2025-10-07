@@ -6,15 +6,20 @@ This directory contains data collection modules for the trading platform, follow
 
 ```
 src/data_collectors/
-├── config_reader.py          # Configuration management
-├── polygon/                  # Polygon.io data collector
-│   ├── launch.py            # Main launch script
-│   ├── utils.py             # Utility functions
-│   ├── client.py            # API client
-│   ├── ticker_collector.py  # Ticker data collection
-│   ├── data_processor.py    # Data processing
-│   └── main.py              # Service entry point
-└── requirements.txt         # Dependencies
+├── common/                   # Shared, broker-agnostic utilities (e.g. Timescale storage)
+├── ibkr/                     # Interactive Brokers collectors
+│   ├── client.py             # Async data client over ib_insync
+│   ├── collection_manager.py # Historical job orchestration
+│   ├── data_storage.py       # IBKR storage wrapper
+│   ├── historical.py         # Historical collector facade
+│   └── main.py               # CLI entry point for IBKR collection
+├── polygon/                  # Polygon.io collectors
+│   ├── client.py             # API client
+│   ├── collection_manager.py # High-level orchestration
+│   ├── data_storage.py       # Polygon-specific storage interface
+│   ├── enhanced_collector.py # Feature-rich collector
+│   └── main.py               # CLI entry point for polygon collection
+└── requirements.txt         # Collector-specific dependencies
 ```
 
 ## Quick Start
@@ -40,7 +45,11 @@ src/data_collectors/
 
 4. **Run data collection:**
    ```bash
-   python src/data_collectors/polygon/launch.py
+   # Polygon historical
+   python src/data_collectors/polygon/collect_data.py
+
+   # IBKR historical (via manage_tp.sh)
+   ./manage_tp.sh --collect-hitorical-data --ibkr
    ```
 
 ## Features

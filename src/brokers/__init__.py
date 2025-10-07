@@ -8,10 +8,8 @@ This module contains broker-specific implementations:
 - Position tracking and account management
 """
 
-from .ibkr import IBKRBroker
-from .paper import PaperTradingBroker
+from .ibkr.adapters import IBBroker
 
 __all__ = [
-    "IBKRBroker",
-    "PaperTradingBroker",
+    "IBBroker",
 ]

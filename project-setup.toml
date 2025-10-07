@@ -6,8 +6,8 @@ time_interval = "minute"
 start_date = "2024-10-05"
 end_date = "2025-10-04"
 
-# Tickers of interest
-tickers = [
+# Symbols of interest
+symbols = [
     "AAPL", "GOOGL", "MSFT", "TSLA", "AMZN",
     "NVDA", "META", "AMD", "XOM", "JPM",
     "JNJ", "V", "PG", "UNH", "HD", "MA",
@@ -59,17 +59,24 @@ table_pattern = "{source}_ohlcv_{symbol}_{tf}"
 
 [ibkr.historical]
 timeframe = "1m"          # one of: 1m, 5m, 1d
-start_date = "2025-09-01"
-end_date = "2025-09-30"
+start_date = "2023-06-12"
+end_date = "2025-10-05"
+symbols = [
+    "AAPL", "GOOGL", "MSFT", "TSLA", "AMZN",
+    "NVDA", "META", "AMD", "XOM", "JPM",
+    "JNJ", "V", "PG", "UNH", "HD", "MA",
+    "DIS", "PYPL", "ADBE", "CRM", "NFLX",
+    "INTC", "CSCO", "PFE", "ABT", "TMO",
+    "ACN", "WMT", "KO", "PEP", "ABBV"
+]
 useRTH = true              # Regular Trading Hours only
 what_to_show = "TRADES"   # TRADES, MIDPOINT, BID, ASK, etc.
-symbols = [ "AAPL", "MSFT" ]
 
 [ibkr.connection]
 host = "127.0.0.1"        # can be overridden by env IBKR_HOST
 port_paper = 7497          # env IBKR_PORT
 port_live = 7496
-client_id = 101
+client_id = 102
 
 [ibkr.realtime]
 symbols = [ "AAPL" ]
@@ -89,9 +96,16 @@ table_pattern = "{source}_ohlcv_{symbol}_{tf}"
 
 [etrade.historical]
 timeframe = "1m"
-start_date = "2025-09-01"
-end_date = "2025-09-30"
-symbols = []
+start_date = "2023-06-12"
+end_date = "2025-10-06"
+symbols = [
+    "AAPL", "GOOGL", "MSFT", "TSLA", "AMZN",
+    "NVDA", "META", "AMD", "XOM", "JPM",
+    "JNJ", "V", "PG", "UNH", "HD", "MA",
+    "DIS", "PYPL", "ADBE", "CRM", "NFLX",
+    "INTC", "CSCO", "PFE", "ABT", "TMO",
+    "ACN", "WMT", "KO", "PEP", "ABBV"
+]
 
 [etrade.connection]
 base_url = ""            # fill in when enabled
@@ -136,8 +150,8 @@ time_interval = "minute"
 start_date = "2024-10-05"
 end_date = "2025-10-04"
 
-# Tickers of interest
-tickers = [
+# Symbols of interest
+symbols = [
     "AAPL", "GOOGL", "MSFT", "TSLA", "AMZN", 
     "NVDA", "META", "AMD", "XOM", "JPM",
     "JNJ", "V", "PG", "UNH", "HD", "MA",
@@ -182,13 +196,3 @@ enable_json_export = true
 enable_plotly_charts = true
 enable_matplotlib_plots = true
 
-[ibkr_historical]
-# Historical collection settings for IBKR
-timeframe = "1m"          # one of: 1m, 5m, 1d
-start_date = "2025-09-01"
-end_date = "2025-09-30"
-useRTH = true              # Regular Trading Hours only
-what_to_show = "TRADES"   # TRADES, MIDPOINT, BID, ASK, etc.
-symbols = [
-  "AAPL", "MSFT"
-]

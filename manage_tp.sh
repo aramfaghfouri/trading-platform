@@ -136,7 +136,7 @@ collect_data() {
     local time_interval=$(awk -F\" '/^\[polygon\.data_collection\]/{f=1;next} f&&/time_interval/{print $2; exit}' project-setup.toml)
     local start_date=$(awk -F\" '/^\[polygon\.data_collection\]/{f=1;next} f&&/start_date/{print $2; exit}' project-setup.toml)
     local end_date=$(awk -F\" '/^\[polygon\.data_collection\]/{f=1;next} f&&/end_date/{print $2; exit}' project-setup.toml)
-    local tickers=$(awk '/^\[polygon\.data_collection\]/{f=1;next} f&&/tickers/{g=1} g{print} g&&/\]/{exit}' project-setup.toml | grep -o '"[^"]\+"' | tr -d '"' | tr '\n' ' ')
+    local tickers=$(awk '/^\[polygon\.data_collection\]/{f=1;next} f&&/symbols/{g=1} g{print} g&&/\]/{exit}' project-setup.toml | grep -o '"[^"]\+"' | tr -d '"' | tr '\n' ' ')
     
     print_status "Configuration:"
     print_status "  Time Interval: $time_interval"
@@ -147,7 +147,7 @@ collect_data() {
     # Activate conda environment and run data collection
     eval "$(conda shell.bash hook)"
     conda activate env-trading
-    python src/data_collectors/polygon/main.py collect
+    python -m src.data_collectors.polygon.main collect
     
     if [[ $? -eq 0 ]]; then
         print_success "Data collection completed successfully!"
@@ -211,7 +211,7 @@ collect_sample_data() {
     # Activate conda environment and run sample data collection
     eval "$(conda shell.bash hook)"
     conda activate env-trading
-    python src/data_collectors/polygon/main.py sample --symbols AAPL MSFT GOOGL TSLA AMZN --days 30
+    python -m src.data_collectors.polygon.main sample --symbols AAPL MSFT GOOGL TSLA AMZN --days 30
     
     if [[ $? -eq 0 ]]; then
         print_success "Sample data collection completed successfully!"
@@ -287,38 +287,12 @@ ib_place_order() {
 
 # IBKR historical collection using settings from project-setup.toml
 ib_collect_historical() {
-    # Extract settings from [ibkr_historical]
-    local tf=$(awk -F\" '/^\[ibkr_historical\]/{f=1;next} f&&/timeframe/{print $2; exit}' project-setup.toml)
-    local start=$(awk -F\" '/^\[ibkr_historical\]/{f=1;next} f&&/start_date/{print $2; exit}' project-setup.toml)
-    local end=$(awk -F\" '/^\[ibkr_historical\]/{f=1;next} f&&/end_date/{print $2; exit}' project-setup.toml)
-    local symbols=$(awk '/^\[ibkr_historical\]/{f=1;next} f&&/symbols/{g=1} g{print} g&&/\]/{exit}' project-setup.toml | grep -o '"[^"]\+"' | tr -d '"' | tr '\n' ' ')
-    if [[ -z "$tf" ]]; then tf="1m"; fi
-    if [[ -z "$start" ]]; then start="2025-09-01"; fi
-    if [[ -z "$end" ]]; then end="2025-09-30"; fi
-    if [[ -z "$symbols" ]]; then symbols="AAPL"; fi
-    print_status "IBKR historical: symbols=[$symbols] ${start}..${end} tf=${tf} (from project-setup.toml)"
+    print_status "Reading IBKR settings from project-setup.toml and collecting historical data..."
     cd "$PROJECT_ROOT"
     eval "$(conda shell.bash hook)"
     conda activate env-trading
-    python - <<PY
-import asyncio
-from src.data_collectors.ibkr.historical import IBKRHistoricalCollector
-
-tf = "${tf}"
-start = "${start}"
-end = "${end}"
-symbols = "${symbols}".split()
-
-async def main():
-    c = IBKRHistoricalCollector()
-    for s in symbols:
-        res = await c.collect_and_store(s, start, end, tf)
-        print({s: res})
-
-asyncio.run(main())
-PY
-    if [[ $? -ne 0 ]]; then
-        print_error "IBKR historical collection failed"; exit 1; fi
+    python "$PROJECT_ROOT/collect_ibkr_all.py" || {
+        print_error "IBKR historical collection failed"; exit 1; }
     print_success "IBKR historical collection completed"
 }
 
@@ -331,7 +305,7 @@ debug_collector() {
     # Activate conda environment and run debug
     eval "$(conda shell.bash hook)"
     conda activate env-trading
-    python src/data_collectors/polygon/main.py debug
+    python -m src.data_collectors.polygon.main debug
     
     if [[ $? -eq 0 ]]; then
         print_success "Debug completed successfully!"
@@ -350,7 +324,7 @@ check_database() {
     # Activate conda environment and run status check
     eval "$(conda shell.bash hook)"
     conda activate env-trading
-    python src/data_collectors/polygon/main.py status
+    python -m src.data_collectors.polygon.main status
     
     if [[ $? -eq 0 ]]; then
         print_success "Database status check completed!"
@@ -388,7 +362,8 @@ show_help() {
     echo "Commands:"
     echo "  --delete-databases    Delete all databases and containers"
     echo "  --start-database      Start TimescaleDB"
-    echo "  --collect-data        Collect data for all configured tickers"
+    echo "  --collect-data [--polygon|--ibkr|--all]"
+    echo "                        Collect data using Polygon (default), IBKR, or both"
     echo "  --collect-sample      Collect sample data for testing (AAPL, MSFT, GOOGL, TSLA, AMZN)"
     echo "  --validate-config     Validate configuration files"
     echo "  --collect-hitorical-data [--polygon|--ibkr|--all]"
@@ -445,7 +420,28 @@ main() {
             ;;
         --collect-data)
             check_requirements
-            collect_data
+            provider="${2:-}" # optional provider selector
+            case "$provider" in
+                ""|--polygon)
+                    collect_data
+                    ;;
+                --ibkr)
+                    ib_collect_historical
+                    ;;
+                --all)
+                    collect_data
+                    ib_collect_historical
+                    ;;
+                *)
+                    if [[ -n "$provider" ]]; then
+                        print_error "Unknown provider option: $provider"
+                        print_status "Use --polygon | --ibkr | --all"
+                        exit 1
+                    else
+                        collect_data
+                    fi
+                    ;;
+            esac
             ;;
         --collect-sample)
             check_requirements

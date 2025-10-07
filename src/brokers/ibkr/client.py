@@ -17,6 +17,12 @@ class IBClient:
         self.ib.connect(self.host, self.port, clientId=self.client_id)
         return self
 
+    async def connect_async(self):
+        if self.ib.isConnected():
+            return self
+        await self.ib.connectAsync(self.host, self.port, clientId=self.client_id)
+        return self
+
     def disconnect(self):
         self.ib.disconnect()
 
@@ -38,5 +44,27 @@ class IBClient:
         contract = Stock(symbol, 'SMART', 'USD')
         order = MarketOrder(action, qty) if limit is None else LimitOrder(action, qty, limit)
         return self.ib.placeOrder(contract, order)
+
+    async def req_historical_data_async(
+        self,
+        symbol: str,
+        end_datetime,
+        duration: str,
+        bar_size: str,
+        what_to_show: str,
+        use_rth: bool = True,
+        format_date: int = 1,
+    ):
+        contract = Stock(symbol, 'SMART', 'USD')
+        bars = await self.ib.reqHistoricalDataAsync(
+            contract,
+            endDateTime=end_datetime,
+            durationStr=duration,
+            barSizeSetting=bar_size,
+            whatToShow=what_to_show,
+            useRTH=use_rth,
+            formatDate=format_date,
+        )
+        return bars
 
 

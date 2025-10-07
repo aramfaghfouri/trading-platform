@@ -10,7 +10,7 @@ from pathlib import Path
 from datetime import datetime, timedelta
 from tqdm import tqdm
 import pandas as pd
-import toml
+from src.core.config_loader import ConfigLoader
 
 # Add src to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
@@ -124,12 +124,6 @@ def agg_to_list(agg, ticker):
         ]
 
 
-def load_project_config():
-    """Load configuration from project-setup.toml"""
-    config_path = Path(__file__).parent.parent.parent.parent / "project-setup.toml"
-    with open(config_path, 'r') as f:
-        return toml.load(f)
-
 async def create_ticker_tables(symbols: list):
     """Pre-create all ticker tables before data collection"""
     print("🏗️  Creating ticker tables...")
@@ -187,20 +181,19 @@ async def collect_and_store_data_working_approach():
     print("🚀 Enhanced Data Collection with Pre-created Tables")
     print("=" * 60)
     
-    # Load configuration from project-setup.toml
-    project_config = load_project_config()
-    data_config = project_config['data_collection']
+    loader = ConfigLoader()
+    polygon_cfg = loader.get_provider_setup('polygon', 'data_collection') or {}
     
     # Configuration
     polygon_config = get_polygon_config()
     api_key = polygon_config.api.api_key
     
     # Parameters from project-setup.toml
-    time_interval = data_config['time_interval']
-    start = data_config['start_date']
-    end = data_config['end_date']
-    symbols = data_config['tickers']
-    rate_limit_delay = data_config.get('rate_limit_delay', 13)
+    time_interval = polygon_cfg.get('time_interval', 'minute')
+    start = polygon_cfg.get('start_date', '2024-01-01')
+    end = polygon_cfg.get('end_date', '2024-01-31')
+    symbols = polygon_cfg.get('symbols', ['AAPL'])
+    rate_limit_delay = polygon_cfg.get('rate_limit_delay', 13)
     
     print(f"📅 Date range: {start} to {end}")
     print(f"📈 Symbols: {', '.join(symbols)}")
