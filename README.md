@@ -176,6 +176,17 @@ export LIVE_TRADING_CONFIRM=true
 python -m src.cli.ib place-order --symbol AAPL --action BUY --qty 1 --limit 1.00
 ```
 
+### IBKR Gap-Aware Collection Enhancements
+
+- RTH-aware trading sessions; minute data now limited to regular trading hours when `useRTH=true`
+- Gap detection trims existing intervals to avoid duplicates and focus on missing bars only
+- `--heartbeat` flag prints progress messages during long database/API tasks (default 15s)
+- Heartbeat also applies to chunk collection (`IBKR chunk N/M for <symbol>`)
+- `--gaps-limit` continues to control how many gaps are printed per symbol
+- Automatic skip of symbols with no gaps in the trading session window
+- `manage_tp.sh --collect-data --ibkr` now runs Python unbuffered to stream live updates
+- Conda activation in `manage_tp.sh` avoids re-activating `env-trading` if already active
+
 ## 📚 Data Model and Table Naming
 
 - Source-prefixed table convention: `<source>_<data_type>_<symbol>_<timeframe>`

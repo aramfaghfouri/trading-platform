@@ -115,7 +115,9 @@ validate_config() {
     
     cd "$PROJECT_ROOT"
     eval "$(conda shell.bash hook)"
-    conda activate env-trading
+    if [[ "${CONDA_DEFAULT_ENV:-}" != "env-trading" ]]; then
+        conda activate env-trading
+    fi
     python scripts/validate_config.py
     
     if [[ $? -eq 0 ]]; then
@@ -287,11 +289,23 @@ ib_place_order() {
 
 # IBKR historical collection using settings from project-setup.toml
 ib_collect_historical() {
-    print_status "Reading IBKR settings from project-setup.toml and collecting historical data..."
+    print_status "Gap-aware IBKR historical collection using project-setup.toml..."
     cd "$PROJECT_ROOT"
     eval "$(conda shell.bash hook)"
     conda activate env-trading
-    python "$PROJECT_ROOT/collect_ibkr_all.py" || {
+    
+    # Prepare arguments
+    extra_args=""
+    if [[ "${IB_DRY_RUN:-false}" == "true" ]]; then
+        extra_args="--dry-run"
+        print_status "Dry-run enabled (IB_DRY_RUN=true)"
+    fi
+    if [[ -n "${IB_GAPS_LIMIT:-}" ]]; then
+        extra_args="$extra_args --gaps-limit ${IB_GAPS_LIMIT}"
+    fi
+    
+    # Run collection (gaps are printed inline for each symbol)
+    PYTHONUNBUFFERED=1 python "$PROJECT_ROOT/collect_ibkr_all.py" $extra_args || {
         print_error "IBKR historical collection failed"; exit 1; }
     print_success "IBKR historical collection completed"
 }
@@ -379,7 +393,6 @@ show_help() {
     echo "  --ib-positions        List IBKR positions"
     echo "  --ib-subscribe        Subscribe to realtime (env: IB_SUB_SYMBOL, IB_SUB_SECONDS)"
     echo "  --ib-place-order      Place order (env: LIVE_TRADING_CONFIRM, IB_ORDER_SYMBOL, IB_ORDER_ACTION, IB_ORDER_QTY, IB_ORDER_LIMIT)"
-    echo "  --ib-collect-hist     Collect IBKR historical based on project-setup.toml"
     echo "  --help                Show this help message"
     echo ""
     echo "Examples:"
@@ -501,10 +514,7 @@ main() {
         --ib-place-order)
             ib_place_order
             ;;
-        --ib-collect-hist)
-            check_requirements
-            ib_collect_historical
-            ;;
+        
         --help|-h)
             show_help
             ;;

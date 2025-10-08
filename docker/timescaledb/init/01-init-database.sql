@@ -140,8 +140,8 @@ DECLARE
     v_table_name VARCHAR(50);
     sql_statement TEXT;
 BEGIN
-    -- Generate table name with source prefix (format: {source}_{symbol}_{timeframe})
-    v_table_name := LOWER(p_source) || '_' || LOWER(p_symbol) || '_' || p_timeframe;
+    -- Generate table name with source prefix
+    v_table_name := LOWER(p_source) || '_' || p_data_type || '_' || LOWER(p_symbol) || '_' || p_timeframe;
     
     -- Check if table already exists
     IF EXISTS (SELECT 1 FROM information_schema.tables 

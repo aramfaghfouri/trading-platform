@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 from datetime import datetime, timedelta
+import math
 from typing import Optional, List, Tuple
 
 import pandas as pd
@@ -21,44 +22,42 @@ BAR_SIZE_MAP = {
 }
 
 
-def segment_date_range(start: str, end: str, max_days: int = 365) -> List[Tuple[str, str]]:
-    """
-    Segment a date range into monthly chunks for IBKR historical data requests.
-    This approach is more conservative and avoids IBKR's 365-day limit issues.
-    
-    Args:
-        start: Start date in ISO format (YYYY-MM-DD)
-        end: End date in ISO format (YYYY-MM-DD)
-        max_days: Maximum days per segment (unused in monthly approach)
-    
-    Returns:
-        List of (start_date, end_date) tuples in ISO format
-    """
+def segment_date_range(start: str, end: str, max_days: int = 10) -> List[Tuple[datetime, datetime]]:
+    """Split a date/time range into chunks <= max_days while preserving intraday bounds."""
+
     start_dt = datetime.fromisoformat(start)
     end_dt = datetime.fromisoformat(end)
-    
-    segments = []
-    current_start = start_dt
-    
-    while current_start < end_dt:
-        # Calculate end of current month
-        if current_start.month == 12:
-            next_month = current_start.replace(year=current_start.year + 1, month=1, day=1)
-        else:
-            next_month = current_start.replace(month=current_start.month + 1, day=1)
-        
-        # Segment end is last day of current month, but not beyond end_dt
-        segment_end = min(next_month - timedelta(days=1), end_dt)
-        
-        segments.append((
-            current_start.strftime("%Y-%m-%d"),
-            segment_end.strftime("%Y-%m-%d")
-        ))
-        
-        # Move to first day of next month
-        current_start = next_month
-    
+
+    if start_dt >= end_dt:
+        return [(start_dt, end_dt)]
+
+    segments: List[Tuple[datetime, datetime]] = []
+    cursor = start_dt
+    max_delta = timedelta(days=max_days)
+
+    while cursor < end_dt:
+        next_cursor = min(cursor + max_delta, end_dt)
+        if next_cursor <= cursor:
+            break
+        segments.append((cursor, next_cursor))
+        cursor = next_cursor
+
     return segments
+
+
+def _format_ib_duration(start_dt: datetime, end_dt: datetime) -> str:
+    """Format a duration string acceptable by IBKR based on the interval length."""
+
+    delta = end_dt - start_dt
+    total_seconds = max(int(delta.total_seconds()), 60)
+
+    if total_seconds <= 12 * 3600:
+        return f"{total_seconds} S"
+    if total_seconds <= 30 * 86400:
+        days = max(1, math.ceil(total_seconds / 86400))
+        return f"{days} D"
+    weeks = max(1, math.ceil(total_seconds / (7 * 86400)))
+    return f"{weeks} W"
 
 
 class IBKRDataClient:
@@ -83,18 +82,25 @@ class IBKRDataClient:
 
         start_date = start or hist_cfg.get("start_date")
         end_date = end or hist_cfg.get("end_date")
-        
-        # Segment the date range into monthly chunks for IBKR requests
-        segments = segment_date_range(start_date, end_date)
-        
-        logger.info("Fetching %s data for %s in %d segments", tf, symbol, len(segments))
+
+        segments = segment_date_range(
+            start_date,
+            end_date,
+            hist_cfg.get("d_max_days", 10),
+        )
+
+        logger.info("Fetching {} data for {} in {} segments", tf, symbol, len(segments))
         
         all_bars = []
         
         # Connect only once
         if not self._connected:
-            logger.info("Attempting to connect to IBKR at %s:%s (client_id: %s)", 
-                       self.broker.client.host, self.broker.client.port, self.broker.client.client_id)
+            logger.info(
+                "Attempting to connect to IBKR at {}:{} (client_id: {})",
+                self.broker.client.host,
+                self.broker.client.port,
+                self.broker.client.client_id,
+            )
             
             try:
                 logger.info("⏳ Connecting to IBKR (this may take a few seconds)...")
@@ -103,27 +109,44 @@ class IBKRDataClient:
                 logger.info("✅ Successfully connected to IBKR")
             except asyncio.TimeoutError:
                 logger.error("❌ Connection timeout - IBKR TWS/Gateway not responding")
-                logger.error("Please ensure IBKR TWS/Gateway is running on port %s", self.broker.client.port)
+                logger.error("Please ensure IBKR TWS/Gateway is running on port {}", self.broker.client.port)
                 raise
             except Exception as e:
-                logger.error("❌ Failed to connect to IBKR: %s", e)
-                logger.error("Please ensure IBKR TWS/Gateway is running on port %s", self.broker.client.port)
+                logger.error("❌ Failed to connect to IBKR: {}", e)
+                logger.error("Please ensure IBKR TWS/Gateway is running on port {}", self.broker.client.port)
                 raise
         
-        for i, (seg_start, seg_end) in enumerate(segments, 1):
-            logger.info("Processing segment %d/%d: %s to %s", i, len(segments), seg_start, seg_end)
-            
-            start_dt = datetime.fromisoformat(seg_start)
-            end_dt = datetime.fromisoformat(seg_end)
-            delta_days = max(1, (end_dt - start_dt).days or 1)
-            duration = f"{delta_days} D"
+        for i, (seg_start_dt, seg_end_dt) in enumerate(segments, 1):
+            if seg_end_dt <= seg_start_dt:
+                logger.debug("Skipping empty segment {} -> {}", seg_start_dt, seg_end_dt)
+                continue
+
+            duration = _format_ib_duration(seg_start_dt, seg_end_dt)
+            logger.info(
+                "Processing segment {}/{}: {} to {} (duration {})",
+                i,
+                len(segments),
+                seg_start_dt.isoformat(),
+                seg_end_dt.isoformat(),
+                duration,
+            )
+
+            # IB requires endDateTime to be the end of the interval; add a small buffer to ensure inclusivity
+            request_end_dt = seg_end_dt + timedelta(seconds=30)
 
             try:
-                logger.info("📊 Requesting %s data for %s: %s to %s (%s)", tf, symbol, seg_start, seg_end, duration)
+                logger.info(
+                    "📊 Requesting {} data for {}: {} to {} ({})",
+                    tf,
+                    symbol,
+                    seg_start_dt.isoformat(),
+                    seg_end_dt.isoformat(),
+                    duration,
+                )
                 bars = await asyncio.wait_for(
                     self.broker.req_historical_data_async(
                         symbol,
-                        end_dt,
+                        request_end_dt,
                         duration,
                         bar_size,
                         str(hist_cfg.get("what_to_show", "TRADES")),
@@ -135,19 +158,37 @@ class IBKRDataClient:
                 
                 if bars:
                     all_bars.extend(bars)
-                    logger.info("Retrieved %d bars for segment %d", len(bars), i)
+                    logger.info("Retrieved {} bars for segment {}", len(bars), i)
                 else:
-                    logger.warning("No bars returned for segment %d: %s to %s", i, seg_start, seg_end)
-                    
+                    logger.warning(
+                        "No bars returned for segment {}: {} to {}",
+                        i,
+                        seg_start_dt.isoformat(),
+                        seg_end_dt.isoformat(),
+                    )
+
             except asyncio.TimeoutError:
-                logger.error("⏰ Timeout fetching segment %d (%s to %s) for %s", i, seg_start, seg_end, symbol)
+                logger.error(
+                    "⏰ Timeout fetching segment {} ({} to {}) for {}",
+                    i,
+                    seg_start_dt.isoformat(),
+                    seg_end_dt.isoformat(),
+                    symbol,
+                )
                 continue
             except Exception as e:
-                logger.error("❌ Error fetching segment %d (%s to %s) for %s: %s", i, seg_start, seg_end, symbol, e)
+                logger.error(
+                    "❌ Error fetching segment {} ({} to {}) for {}: {}",
+                    i,
+                    seg_start_dt.isoformat(),
+                    seg_end_dt.isoformat(),
+                    symbol,
+                    e,
+                )
                 continue
 
         if not all_bars:
-            logger.warning("IBKR returned no bars for %s across all segments", symbol)
+            logger.warning("IBKR returned no bars for {} across all segments", symbol)
             return pd.DataFrame()
 
         # Combine all bars from all segments
@@ -173,11 +214,11 @@ class IBKRDataClient:
         # Remove duplicates and sort by timestamp
         df = df[~df.index.duplicated(keep='last')].sort_index()
         
-        logger.info("Combined %d total bars for %s", len(df), symbol)
+        logger.info("Combined {} total bars for {}", len(df), symbol)
         return df
 
     async def close(self) -> None:
         try:
             self.broker.disconnect()
         except Exception as exc:  # pragma: no cover - defensive
-            logger.debug("IBKR disconnect threw: %s", exc)
+            logger.debug("IBKR disconnect threw: {}", exc)

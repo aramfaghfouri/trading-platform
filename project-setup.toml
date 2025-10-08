@@ -1,3 +1,24 @@
+#[api]
+# Polygon.io API settings
+#base_url = "https://api.polygon.io"
+#rate_limit_per_minute = 5
+#max_requests_per_day = 1000
+
+#[processing]
+# Data processing settings
+
+#chunk_size = 50000
+#enable_parallel_processing = false
+#max_workers = 4
+
+[output]
+# Output settings
+enable_csv_export = true
+enable_json_export = true
+enable_plotly_charts = true
+enable_matplotlib_plots = true
+
+
 [polygon]
 
 [polygon.data_collection]
@@ -5,7 +26,7 @@
 time_interval = "minute"
 start_date = "2024-10-05"
 end_date = "2025-10-04"
-
+d_max_days = 10
 # Symbols of interest
 symbols = [
     "AAPL", "GOOGL", "MSFT", "TSLA", "AMZN",
@@ -61,10 +82,8 @@ table_pattern = "{source}_ohlcv_{symbol}_{tf}"
 timeframe = "1m"          # one of: 1m, 5m, 1d
 start_date = "2023-06-12"
 end_date = "2025-10-05"
+d_max_days = 10
 symbols = [
-    "AAPL", "GOOGL", "MSFT", "TSLA", "AMZN",
-    "NVDA", "META", "AMD", "XOM", "JPM",
-    "JNJ", "V", "PG", "UNH", "HD", "MA",
     "DIS", "PYPL", "ADBE", "CRM", "NFLX",
     "INTC", "CSCO", "PFE", "ABT", "TMO",
     "ACN", "WMT", "KO", "PEP", "ABBV"
@@ -98,6 +117,7 @@ table_pattern = "{source}_ohlcv_{symbol}_{tf}"
 timeframe = "1m"
 start_date = "2023-06-12"
 end_date = "2025-10-06"
+d_max_days = 10
 symbols = [
     "AAPL", "GOOGL", "MSFT", "TSLA", "AMZN",
     "NVDA", "META", "AMD", "XOM", "JPM",
@@ -128,6 +148,7 @@ table_pattern = "{source}_ohlcv_{symbol}_{tf}"
 timeframe = "1m"
 start_date = "2025-09-01"
 end_date = "2025-09-30"
+d_max_days = 10
 symbols = []
 market = "US"             # or "Futures", etc.
 
@@ -177,22 +198,5 @@ enable_heikin_ashi = true
 enable_peak_detection = true
 timezone = "America/New_York"
 
-[api]
-# Polygon.io API settings
-base_url = "https://api.polygon.io"
-rate_limit_per_minute = 5
-max_requests_per_day = 1000
 
-[processing]
-# Data processing settings
-chunk_size = 50000
-enable_parallel_processing = false
-max_workers = 4
-
-[output]
-# Output settings
-enable_csv_export = true
-enable_json_export = true
-enable_plotly_charts = true
-enable_matplotlib_plots = true
 

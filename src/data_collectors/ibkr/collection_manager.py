@@ -75,7 +75,7 @@ class IBKRCollectionManager:
                 raise RuntimeError(result.error or "storage_failed")
         except Exception as exc:
             task.last_error = str(exc)
-            logger.error("IBKR task %s failed: %s", task_id, exc)
+            logger.error("IBKR task {} failed: {}", task_id, exc)
             if task.attempts >= task.max_attempts:
                 task.completed_at = datetime.now(timezone.utc)
                 self.stats.failed += 1

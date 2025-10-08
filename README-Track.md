@@ -386,6 +386,14 @@ This document tracks the progress of implementing the live trading platform with
 ### 🚀 Ready for Phase 2
 The foundation is now solid and ready for VectorBT strategy framework development.
 
+## ✅ Recent Updates
+
+- Enhanced IBKR gap-aware collection pipeline with RTH-aware trading sessions
+- Added heartbeat logging for long database/API operations (`--heartbeat` flag)
+- `manage_tp.sh --collect-data --ibkr` now runs Python unbuffered for immediate logs
+- Conda activation optimized to skip redundant env switches
+- Gap detection trims existing intervals to avoid re-collecting duplicates
+
 ---
 
 **Last Updated**: 2024-10-05  

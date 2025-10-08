@@ -33,23 +33,23 @@ class IBKRHistoricalCollector(HistoricalProviderBase):
         try:
             return await self.client.fetch_bars(symbol, start, end, timeframe)
         except asyncio.TimeoutError:
-            logger.error("❌ Connection timeout for %s - IBKR TWS/Gateway not responding", symbol)
+            logger.error("❌ Connection timeout for {} - IBKR TWS/Gateway not responding", symbol)
             raise  # Don't silently catch connection errors
         except ConnectionError as e:
-            logger.error("❌ Connection error for %s: %s", symbol, e)
+            logger.error("❌ Connection error for {}: {}", symbol, e)
             raise  # Don't silently catch connection errors
         except Exception as e:
-            logger.error("❌ IBKR historical fetch failed for %s: %s", symbol, e)
+            logger.error("❌ IBKR historical fetch failed for {}: {}", symbol, e)
             logger.exception("Full traceback:")
             return pd.DataFrame()
 
     async def collect_and_store(self, symbol: str, start: str, end: str, timeframe: str) -> dict:
         """Scaffold method: when implemented, will store to ibkr_ohlcv_<symbol>_<tf>."""
-        logger.info("🔄 Starting collection for %s (%s to %s, %s)", symbol, start, end, timeframe)
+        logger.info("🔄 Starting collection for {} ({} to {}, {})", symbol, start, end, timeframe)
         df = await self._fetch_historical(symbol, start, end, timeframe)
         records: List[Dict[str, Any]] = []
         if not df.empty:
-            logger.info("📊 Processing %d bars for %s", len(df), symbol)
+            logger.info("📊 Processing {} bars for {}", len(df), symbol)
             for ts, row in df.iterrows():
                 records.append({
                     'timestamp': ts,
@@ -62,11 +62,11 @@ class IBKRHistoricalCollector(HistoricalProviderBase):
                     'transactions': int(row.get('transactions', 0)) if 'transactions' in row else None,
                 })
         else:
-            logger.warning("⚠️  No data retrieved for %s", symbol)
+            logger.warning("⚠️  No data retrieved for {}", symbol)
             
         async with self.storage as storage:
             res = await storage.store_ohlcv(symbol, timeframe, records)
-            logger.info("💾 Storage result for %s: %s", symbol, res)
+            logger.info("💾 Storage result for {}: {}", symbol, res)
             return {
                 'success': res.success,
                 'inserted': res.records_inserted,
@@ -74,5 +74,4 @@ class IBKRHistoricalCollector(HistoricalProviderBase):
                 'skipped': res.records_skipped,
                 'error': res.error,
             }
-
 

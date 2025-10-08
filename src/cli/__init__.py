@@ -11,14 +11,3 @@ This module contains CLI commands for:
 - System administration and maintenance
 """
 
-from .main import cli
-from .data_commands import data_cli
-from .strategy_commands import strategy_cli
-from .trading_commands import trading_cli
-
-__all__ = [
-    "cli",
-    "data_cli",
-    "strategy_cli",
-    "trading_cli",
-]
