@@ -6,6 +6,7 @@ from typing import Any, Dict, List, Optional
 import os
 import asyncpg
 from asyncpg import Pool, Connection
+from asyncpg.exceptions import DuplicateTableError
 from loguru import logger
 
 from src.core.config_loader import get_database_config
@@ -75,39 +76,125 @@ class SourceDataStorage:
 
     async def _ensure_table(self, conn: Connection, symbol: str, timeframe: str) -> str:
         """Create or fetch source-prefixed table for symbol/timeframe."""
-        # Build expected table name
         expected_table = f"{self.source}_ohlcv_{symbol.lower()}_{timeframe}"
-        
-        # Check if table exists directly
+
         table_exists = await conn.fetchval(
             "SELECT table_name FROM information_schema.tables WHERE table_name = $1",
             expected_table
         )
-        
+
         if table_exists:
-            logger.info(f"✅ Table {expected_table} already exists")
+            logger.info("✅ Table {} already exists", expected_table)
             return expected_table
-        
-        # Try to create the table
-        logger.info(f"📝 Creating table {expected_table}")
-        created = await conn.fetchval(
-            "SELECT create_source_ticker_table($1,$2,$3,$4)",
-            self.source, symbol, 'ohlcv', timeframe
-        )
-        
-        if not created:
-            # Check again if table was created by another process
-            table_exists = await conn.fetchval(
-                "SELECT table_name FROM information_schema.tables WHERE table_name = $1",
-                expected_table
+
+        logger.info("📝 Creating table {}", expected_table)
+
+        created = None
+        try:
+            created = await conn.fetchval(
+                "SELECT create_source_ticker_table($1,$2,$3,$4)",
+                self.source,
+                symbol,
+                'ohlcv',
+                timeframe,
             )
-            if table_exists:
-                logger.info(f"✅ Table {expected_table} was created by another process")
-                return expected_table
-            raise RuntimeError(f"Failed creating table for {self.source}:{symbol}:{timeframe}")
-        
-        logger.info(f"✅ Successfully created table {expected_table}")
+        except asyncpg.UndefinedFunctionError:
+            logger.warning(
+                "create_source_ticker_table helper missing; using inline table template for {}",
+                expected_table,
+            )
+            await self._manual_create_table(conn, expected_table, symbol, timeframe)
+            return expected_table
+
+        if created:
+            logger.info("✅ Successfully created table {}", expected_table)
+            return expected_table
+
+        logger.warning(
+            "Helper create_source_ticker_table returned falsy for {}; falling back to inline template",
+            expected_table,
+        )
+        await self._manual_create_table(conn, expected_table, symbol, timeframe)
         return expected_table
+
+    async def _manual_create_table(
+        self,
+        conn: Connection,
+        table_name: str,
+        symbol: str,
+        timeframe: str,
+    ) -> None:
+        """Create source-prefixed OHLCV table using the project template."""
+
+        table_exists = await conn.fetchval(
+            "SELECT table_name FROM information_schema.tables WHERE table_name = $1",
+            table_name,
+        )
+
+        if table_exists:
+            logger.info("✅ Table {} already exists (detected during manual creation)", table_name)
+            return
+
+        create_sql = f"""
+            CREATE TABLE IF NOT EXISTS {table_name} (
+                timestamp TIMESTAMPTZ NOT NULL PRIMARY KEY,
+                open DECIMAL(10,4) NOT NULL,
+                high DECIMAL(10,4) NOT NULL,
+                low DECIMAL(10,4) NOT NULL,
+                close DECIMAL(10,4) NOT NULL,
+                volume BIGINT NOT NULL DEFAULT 0,
+                vwap DECIMAL(10,4),
+                transactions INTEGER,
+                trade_count INTEGER,
+                is_complete BOOLEAN DEFAULT TRUE,
+                data_source VARCHAR(20) DEFAULT '{self.source}',
+                created_at TIMESTAMPTZ DEFAULT NOW(),
+                updated_at TIMESTAMPTZ DEFAULT NOW()
+            )
+        """
+
+        try:
+            await conn.execute(create_sql)
+        except DuplicateTableError:
+            logger.info("✅ Table {} was created concurrently", table_name)
+        except Exception as exc:
+            raise RuntimeError(f"Failed creating table for {self.source}:{symbol}:{timeframe} - {exc}") from exc
+
+        await conn.execute(
+            "SELECT create_hypertable($1, 'timestamp', chunk_time_interval => INTERVAL '1 day', if_not_exists => TRUE)",
+            table_name,
+        )
+
+        await conn.execute(
+            f"ALTER TABLE {table_name} SET (timescaledb.compress, timescaledb.compress_segmentby = 'timestamp')"
+        )
+
+        await conn.execute(
+            "SELECT add_compression_policy($1, INTERVAL '7 days', if_not_exists => TRUE)",
+            table_name,
+        )
+
+        await conn.execute(
+            "SELECT add_retention_policy($1, INTERVAL '1 year', if_not_exists => TRUE)",
+            table_name,
+        )
+
+        await conn.execute(
+            """
+            INSERT INTO ticker_registry (symbol, table_name, data_type, timeframe, last_updated)
+            VALUES ($1, $2, 'ohlcv', $3, NOW())
+            ON CONFLICT (symbol) DO UPDATE
+            SET table_name = EXCLUDED.table_name,
+                data_type = EXCLUDED.data_type,
+                timeframe = EXCLUDED.timeframe,
+                last_updated = NOW()
+        """,
+            symbol,
+            table_name,
+            timeframe,
+        )
+
+        logger.info("✅ Successfully created table {} via inline template", table_name)
 
     async def store_ohlcv(self, symbol: str, timeframe: str, bars: List[Dict[str, Any]]) -> StorageResult:
         if not bars:
@@ -161,5 +248,3 @@ class SourceDataStorage:
         except Exception as e:
             logger.error("Storage failed: {}", e)
             return StorageResult(False, 0, 0, 0, str(e))
-
-

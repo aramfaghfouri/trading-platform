@@ -83,9 +83,7 @@ timeframe = "1m"          # one of: 1m, 5m, 1d
 start_date = "2023-06-12"
 end_date = "2025-10-05"
 d_max_days = 10
-symbols = [
-    "DIS", "PYPL", "ADBE", "CRM", "NFLX",
-    "INTC", "CSCO", "PFE", "ABT", "TMO",
+symbols = ["TMO",
     "ACN", "WMT", "KO", "PEP", "ABBV"
 ]
 useRTH = true              # Regular Trading Hours only
