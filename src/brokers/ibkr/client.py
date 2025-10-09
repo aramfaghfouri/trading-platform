@@ -13,8 +13,12 @@ class IBClient:
         self.client_id = int(client_id or os.getenv("IBKR_CLIENT_ID", "101"))
         self.ib = IB()
 
-    def connect(self):
-        self.ib.connect(self.host, self.port, clientId=self.client_id)
+    def connect(self, timeout: float | None = 15.0):
+        # Increase timeout to avoid handshake timeouts when TWS is busy
+        if timeout is None:
+            self.ib.connect(self.host, self.port, clientId=self.client_id)
+        else:
+            self.ib.connect(self.host, self.port, clientId=self.client_id, timeout=timeout)
         return self
 
     async def connect_async(self):

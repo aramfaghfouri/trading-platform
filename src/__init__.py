@@ -10,4 +10,4 @@ __author__ = "Trading Platform Team"
 __email__ = "team@trading-platform.com"
 
 # Keep package import side-effect free; subpackages should be imported explicitly
-__all__: list[str] = []
+__all__ = []

@@ -116,6 +116,34 @@ def place_order(host: str, port: int, client_id: int, symbol: str, action: str, 
     broker.disconnect()
 
 
+@ib.command()
+@click.option("--symbol", default="EURUSD", help="Symbol to chart")
+@click.option("--timeframe", default="1m", help="Initial timeframe")
+@click.option("--chart-type", default="lightweight", type=click.Choice(["lightweight", "dash"]), help="Chart type")
+def chart(symbol: str, timeframe: str, chart_type: str):
+    """Launch real-time Heiken-Ashi chart."""
+    
+    click.echo(f"🚀 Launching real-time chart for {symbol} on timeframe {timeframe}")
+    click.echo(f"📊 Chart type: {chart_type}")
+    
+    try:
+        if chart_type == "lightweight":
+            # Use direct lightweight-charts implementation (no custom framework)
+            from src.visualization.lightweight_live_ibkr import launch
+            click.echo("📈 Using TradingView-like lightweight chart (live IBKR)")
+            launch(symbol=symbol, timeframe=timeframe)
+        else:
+            from src.visualization.realtime_chart import launch_chart
+            click.echo("🌐 Using Dash web chart")
+            launch_chart(symbol=symbol, timeframe=timeframe, port=8050, debug=False)
+    except KeyboardInterrupt:
+        click.echo("\n👋 Chart stopped by user")
+    except Exception as e:
+        click.echo(f"❌ Error launching chart: {e}")
+        import traceback
+        traceback.print_exc()
+
+
 def main():
     ib()
 

@@ -80,10 +80,13 @@ table_pattern = "{source}_ohlcv_{symbol}_{tf}"
 
 [ibkr.historical]
 timeframe = "1m"          # one of: 1m, 5m, 1d
-start_date = "2023-06-12"
-end_date = "2025-10-05"
+#start_date = "2023-06-12"
+#end_date = "2025-10-05"
+start_date = "2019-01-01"
+end_date = "2023-06-12"
 d_max_days = 10
-symbols = ["TMO",
+symbols = ["CRM", "NFLX",
+    "INTC", "CSCO", "PFE", "ABT", "TMO",
     "ACN", "WMT", "KO", "PEP", "ABBV"
 ]
 useRTH = true              # Regular Trading Hours only

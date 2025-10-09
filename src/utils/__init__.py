@@ -2,21 +2,33 @@
 Utility functions and helpers.
 
 This module contains:
-- Data processing utilities
-- Technical indicators
-- Performance metrics
-- Visualization helpers
+- Heiken-Ashi calculation utilities
+- Timeframe configuration and aggregation
 - Common utilities
 """
 
-from .indicators import TechnicalIndicators
-from .metrics import PerformanceMetrics
-from .visualization import PlottingHelpers
-from .data_utils import DataProcessor
+# Import available modules
+try:
+    from .heikin_ashi import calculate_heikin_ashi, is_heikin_ashi_bullish, get_heikin_ashi_trend
+except ImportError:
+    pass
+
+try:
+    from .timeframes import (
+        get_timeframe_seconds, 
+        get_pandas_freq, 
+        get_supported_timeframes,
+        aggregate_bars
+    )
+except ImportError:
+    pass
 
 __all__ = [
-    "TechnicalIndicators",
-    "PerformanceMetrics",
-    "PlottingHelpers", 
-    "DataProcessor",
+    "calculate_heikin_ashi",
+    "is_heikin_ashi_bullish", 
+    "get_heikin_ashi_trend",
+    "get_timeframe_seconds",
+    "get_pandas_freq",
+    "get_supported_timeframes",
+    "aggregate_bars",
 ]
