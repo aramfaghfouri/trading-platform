@@ -85,9 +85,7 @@ timeframe = "1m"          # one of: 1m, 5m, 1d
 start_date = "2019-01-01"
 end_date = "2023-06-12"
 d_max_days = 10
-symbols = ["CRM", "NFLX",
-    "INTC", "CSCO", "PFE", "ABT", "TMO",
-    "ACN", "WMT", "KO", "PEP", "ABBV"
+symbols = ["NFLX",
 ]
 useRTH = true              # Regular Trading Hours only
 what_to_show = "TRADES"   # TRADES, MIDPOINT, BID, ASK, etc.
