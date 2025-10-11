@@ -35,7 +35,7 @@ class LightweightRealtimeChart:
         self.max_bars = 500
         
         # Chart state
-        self.chart_type = "ohlc"  # Start with regular OHLC to test
+        self.chart_type = "ha"  # Start with Heikin-Ashi
         self.overlays = []  # List of active overlays
         
         # IBKR connection
@@ -118,7 +118,7 @@ class LightweightRealtimeChart:
         # Chart type selector
         self.chart.topbar.switcher(
             'chart_type',
-            ('Candlestick', 'Heiken-Ashi', 'Both'),
+            ('Candlestick', 'Heiken-Ashi'),
             default='Heiken-Ashi',
             func=self._on_chart_type_change
         )
@@ -164,6 +164,8 @@ class LightweightRealtimeChart:
         """Handle chart type change."""
         try:
             chart_type = chart.topbar['chart_type'].value
+            print(f"🔄 Chart type button clicked: {chart_type}")
+            
             if chart_type == "Heiken-Ashi":
                 self.chart_type = "ha"
             elif chart_type == "Candlestick":
@@ -173,7 +175,13 @@ class LightweightRealtimeChart:
             else:
                 self.chart_type = "ha"  # default
                 
-            print(f"🔄 Switching to {chart_type} chart type")
+            print(f"🔄 Switching to {chart_type} chart type (internal: {self.chart_type})")
+            
+            # Clear any existing overlays first
+            self.overlays = []
+            self._update_overlays()
+            
+            # Update the chart data with new type
             self._update_chart_data()
         except Exception as e:
             print(f"❌ Error in chart type change: {e}")
@@ -182,21 +190,29 @@ class LightweightRealtimeChart:
         
     def _on_overlay_change(self, chart):
         """Handle overlay change."""
-        overlay = chart.topbar['overlays'].value
-        if overlay == 'None':
-            self.overlays = []
-        elif overlay == 'Volume':
-            self.overlays = ['volume']
-        elif overlay == 'SMA20':
-            self.overlays = ['sma20']
-        elif overlay == 'SMA50':
-            self.overlays = ['sma50']
-        elif overlay == 'Volume+SMA20':
-            self.overlays = ['volume', 'sma20']
-        elif overlay == 'Volume+SMA50':
-            self.overlays = ['volume', 'sma50']
-        
-        self._update_overlays()
+        try:
+            overlay = chart.topbar['overlays'].value
+            print(f"🔄 Overlay button clicked: {overlay}")
+            
+            if overlay == 'None':
+                self.overlays = []
+            elif overlay == 'Volume':
+                self.overlays = ['volume']
+            elif overlay == 'SMA20':
+                self.overlays = ['sma20']
+            elif overlay == 'SMA50':
+                self.overlays = ['sma50']
+            elif overlay == 'Volume+SMA20':
+                self.overlays = ['volume', 'sma20']
+            elif overlay == 'Volume+SMA50':
+                self.overlays = ['volume', 'sma50']
+            
+            print(f"🔄 Overlay changed to: {overlay}, overlays: {self.overlays}")
+            self._update_overlays()
+        except Exception as e:
+            print(f"❌ Error in overlay change: {e}")
+            import traceback
+            traceback.print_exc()
         
     def _update_watermark(self):
         """Update the chart watermark."""
@@ -221,21 +237,30 @@ class LightweightRealtimeChart:
         
         # Prepare data based on chart type
         try:
+            print(f"🔄 Preparing chart data with type: {self.chart_type}")
             if self.chart_type == "ha":
+                print("🔄 Calculating Heikin-Ashi from original data...")
+                print(f"📊 Original data sample:\n{df[['open', 'high', 'low', 'close']].head()}")
+                print(f"📊 Original price range: {df['close'].min():.2f} - {df['close'].max():.2f}")
+                
                 df_ha = calculate_heikin_ashi(df)
+                print(f"📊 HA data sample:\n{df_ha[['ha_open', 'ha_high', 'ha_low', 'ha_close']].head()}")
+                print(f"📊 HA price range: {df_ha['ha_close'].min():.2f} - {df_ha['ha_close'].max():.2f}")
+                
                 chart_data = df_ha[['timestamp', 'ha_open', 'ha_high', 'ha_low', 'ha_close', 'volume']].copy()
-                chart_data.columns = ['date', 'open', 'high', 'low', 'close', 'volume']
+                chart_data.columns = ['time', 'open', 'high', 'low', 'close', 'volume']
                 # Use ISO strings for maximum compatibility
                 chart_data['time'] = pd.to_datetime(chart_data['time']).dt.strftime('%Y-%m-%d %H:%M:%S')
                 print("✅ Using Heiken-Ashi data")
                 print(f"📊 Chart data shape: {chart_data.shape}")
                 print(f"📊 Chart data sample:\n{chart_data.head()}")
+                print(f"📊 Final HA price range: {chart_data['close'].min():.2f} - {chart_data['close'].max():.2f}")
                 # Set data on main series
                 self.chart.set(chart_data)
                 
             elif self.chart_type == "ohlc":
                 chart_data = df[['timestamp', 'open', 'high', 'low', 'close', 'volume']].copy()
-                chart_data.columns = ['date', 'open', 'high', 'low', 'close', 'volume']
+                chart_data.columns = ['time', 'open', 'high', 'low', 'close', 'volume']
                 chart_data['time'] = pd.to_datetime(chart_data['time']).dt.strftime('%Y-%m-%d %H:%M:%S')
                 print("✅ Using regular OHLC data")
                 print(f"📊 Chart data shape: {chart_data.shape}")
@@ -248,7 +273,7 @@ class LightweightRealtimeChart:
                 
                 # First set regular OHLC as candlesticks
                 chart_data = df[['timestamp', 'open', 'high', 'low', 'close', 'volume']].copy()
-                chart_data.columns = ['date', 'open', 'high', 'low', 'close', 'volume']
+                chart_data.columns = ['time', 'open', 'high', 'low', 'close', 'volume']
                 chart_data['time'] = pd.to_datetime(chart_data['time']).dt.strftime('%Y-%m-%d %H:%M:%S')
                 self.chart.set(chart_data)
                 
@@ -277,8 +302,9 @@ class LightweightRealtimeChart:
             import traceback
             traceback.print_exc()
         
-        # Update overlays
-        self._update_overlays()
+        # Update overlays only if chart is initialized
+        if self.chart:
+            self._update_overlays()
         
     def _update_overlays(self):
         """Update chart overlays."""
@@ -286,14 +312,37 @@ class LightweightRealtimeChart:
         if not bars:
             return
             
+        # Only update overlays if chart is properly initialized
+        if not self.chart:
+            return
+            
         df = pd.DataFrame(bars)
         df['timestamp'] = pd.to_datetime(df['timestamp'])
         
-        # Remove existing overlay lines
+        # Remove ALL existing overlay lines safely
         for line in self.sma_lines.values():
             if line:
-                line.delete()
+                try:
+                    line.delete()
+                except Exception as e:
+                    print(f"Warning: Could not delete SMA line: {e}")
         self.sma_lines.clear()
+        
+        # Remove Heikin-Ashi line if it exists
+        if hasattr(self, 'ha_line') and self.ha_line:
+            try:
+                self.ha_line.delete()
+            except Exception as e:
+                print(f"Warning: Could not delete HA line: {e}")
+            finally:
+                self.ha_line = None
+        
+        # If overlays is empty, we're done - no need to add new overlays
+        if not self.overlays:
+            print("✅ All overlays removed")
+            return
+        
+        print(f"🔄 Updating overlays: {self.overlays}")
         
         # Add new overlays
         if 'sma20' in self.overlays:
@@ -467,20 +516,31 @@ class LightweightRealtimeChart:
         print("📊 Adding sample data for demonstration...")
         
         # Create sample OHLC data (use larger ranges so candles are clearly visible)
-        base_price = 110.0  # Stock-like base price for visibility
-        current_time = datetime.now()
+        base_price = 200.0  # Stock-like base price for visibility (AAPL-like range)
+        # Use market hours (9:30 AM - 4:00 PM EST) for more realistic timestamps
+        current_time = datetime.now().replace(hour=16, minute=0, second=0, microsecond=0)  # End of market day
         
         sample_bars = []
         for i in range(100):
-            # Generate visible price movement
-            price_change = np.random.normal(0, 0.3)  # Larger changes for visibility
-            base_price += price_change
+            # Generate more realistic price movement
+            if i == 0:
+                # First bar - start with realistic values
+                open_price = base_price
+                high_price = base_price + 1.0
+                low_price = base_price - 0.5
+                close_price = base_price + 0.5
+            else:
+                # Subsequent bars - use previous close as base
+                base_price = sample_bars[-1]['close']
+                price_change = np.random.normal(0, 0.5)  # More realistic price changes
+                open_price = base_price
+                close_price = base_price + price_change
+                high_price = max(open_price, close_price) + abs(np.random.normal(0, 0.3))
+                low_price = min(open_price, close_price) - abs(np.random.normal(0, 0.3))
             
-            # Create OHLC bar
-            open_price = base_price
-            high_price = base_price + abs(np.random.normal(0, 0.2))
-            low_price = base_price - abs(np.random.normal(0, 0.2))
-            close_price = base_price + np.random.normal(0, 0.15)
+            # Debug: print first few bars to see values
+            if i < 5:
+                print(f"Sample bar {i}: O={open_price:.2f}, H={high_price:.2f}, L={low_price:.2f}, C={close_price:.2f}")
             
             bar_data = {
                 'timestamp': current_time - timedelta(minutes=100-i),
