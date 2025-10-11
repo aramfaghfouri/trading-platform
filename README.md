@@ -35,6 +35,195 @@ A comprehensive trading platform built with VectorBT, Polygon.io, and Interactiv
 - **Configuration**: Pydantic models with YAML configuration files
 - **Deployment**: Docker & Docker Compose
 
+## 🎯 Multi-Strategy Real-time Trading System
+
+### Architecture Overview
+
+The platform now supports running multiple strategies in parallel, all reading from a centralized TimescaleDB:
+
+```
+┌─────────────────────┐
+│  Real-time Data     │
+│  Collector (IBKR)   │◄──── 5-second bars from IBKR
+│                     │
+│  - Multi-symbol     │
+│  - Batch writes     │
+│  - Optional chart   │
+└──────────┬──────────┘
+           │
+           ▼
+┌─────────────────────┐
+│   TimescaleDB       │
+│                     │
+│  ibkr_ohlcv_*_5s    │◄──── All real-time data
+│  strategy_state     │
+│  strategy_signals   │
+└──────────┬──────────┘
+           │
+           ├──────────────┬──────────────┬──────────────┐
+           ▼              ▼              ▼              ▼
+    ┌──────────┐   ┌──────────┐   ┌──────────┐   ┌──────────┐
+    │ Strategy │   │ Strategy │   │ Strategy │   │ Strategy │
+    │   SMA    │   │   RSI    │   │  Custom  │   │  Custom  │
+    │          │   │          │   │          │   │          │
+    └──────────┘   └──────────┘   └──────────┘   └──────────┘
+         │              │              │              │
+         └──────────────┴──────────────┴──────────────┘
+                          │
+                          ▼
+                 ┌─────────────────┐
+                 │  Order Manager  │
+                 │  (Future)       │
+                 └─────────────────┘
+```
+
+### Key Features
+
+1. **Write-Once, Read-Many**: Single data collector writes to TimescaleDB, all strategies read independently
+2. **Parallel Execution**: Multiple strategies run simultaneously without conflicts
+3. **Database-Driven**: Strategies poll TimescaleDB for new bars (5-10ms latency)
+4. **State Management**: Track strategy state, heartbeats, and errors in database
+5. **Signal Logging**: All trading signals logged to database with metadata
+
+### Quick Start: Running Strategies
+
+#### 1. Start Real-time Data Collection
+
+```bash
+# Start IBKR data collector for multiple symbols
+python scripts/start_realtime_stream.py AAPL MSFT GOOGL
+
+# Or with chart for one symbol
+python scripts/start_realtime_stream.py --symbols AAPL,MSFT --chart --chart-symbol AAPL
+```
+
+#### 2. Manage Strategies
+
+```bash
+# List all configured strategies
+python -m src.cli.strategy_manager list
+
+# Start a specific strategy
+python -m src.cli.strategy_manager start sma_crossover
+
+# Start all enabled strategies
+python -m src.cli.strategy_manager start-all
+
+# View strategy status (live monitoring)
+python -m src.cli.strategy_manager status --watch
+
+# View generated signals
+python -m src.cli.strategy_manager signals --tail
+
+# Stop a strategy
+python -m src.cli.strategy_manager stop sma_crossover
+```
+
+#### 3. Configure Strategies
+
+Edit `config/strategies.yaml`:
+
+```yaml
+strategies:
+  registry:
+    enabled_strategies:
+      - "sma_crossover"
+      - "rsi_mean_reversion"
+    poll_interval_seconds: 5
+
+  sma_crossover:
+    enabled: true
+    class: "src.strategies.implementations.sma_crossover.SMACrossover"
+    parameters:
+      short_window: 20
+      long_window: 50
+      quantity: 100
+    symbols:
+      - "AAPL"
+```
+
+### Implementing Custom Strategies
+
+Create a new strategy by extending `BaseStrategy`:
+
+```python
+from src.strategies.base import BaseStrategy
+from src.strategies.models import OrderSpec, OrderAction, OrderType, BarData
+
+class MyStrategy(BaseStrategy):
+    async def get_required_lookback(self) -> int:
+        return 50  # Number of bars needed
+    
+    async def on_bar_update(self, symbol: str, bar: BarData) -> Optional[OrderSpec]:
+        # Your strategy logic here
+        df = self.get_cached_bars(symbol)
+        
+        # Calculate indicators
+        # ...
+        
+        # Generate order if conditions met
+        if buy_signal:
+            return OrderSpec(
+                symbol=symbol,
+                action=OrderAction.BUY,
+                quantity=100,
+                order_type=OrderType.MARKET,
+                strategy_name=self.name,
+            )
+        
+        return None
+```
+
+Add to `config/strategies.yaml`:
+
+```yaml
+  my_strategy:
+    enabled: true
+    class: "src.strategies.implementations.my_strategy.MyStrategy"
+    parameters:
+      param1: value1
+    symbols:
+      - "AAPL"
+```
+
+### Database Schema
+
+#### Strategy State Table
+
+```sql
+CREATE TABLE strategy_state (
+    strategy_name VARCHAR(100) PRIMARY KEY,
+    last_processed_timestamp TIMESTAMPTZ,
+    is_running BOOLEAN DEFAULT FALSE,
+    last_heartbeat TIMESTAMPTZ,
+    error_message TEXT,
+    updated_at TIMESTAMPTZ DEFAULT NOW()
+);
+```
+
+#### Strategy Signals Table
+
+```sql
+CREATE TABLE strategy_signals (
+    id SERIAL PRIMARY KEY,
+    strategy_name VARCHAR(100) NOT NULL,
+    symbol VARCHAR(10) NOT NULL,
+    signal_time TIMESTAMPTZ NOT NULL,
+    signal_type VARCHAR(20) NOT NULL,
+    confidence DECIMAL(5,4) DEFAULT 1.0,
+    metadata JSONB,
+    order_id VARCHAR(50),
+    created_at TIMESTAMPTZ DEFAULT NOW()
+);
+```
+
+### Performance Considerations
+
+- **Database Query Latency**: ~10-30ms for fetching recent bars
+- **Polling Interval**: 5 seconds default (configurable)
+- **Batch Writes**: Data collector batches writes every 12 bars (1 minute)
+- **Parallel Strategies**: No limit, but 5-10 strategies recommended per CPU core
+
 ## 📋 Project Status
 
 See [README-Track.md](README-Track.md) for detailed progress tracking and implementation phases.

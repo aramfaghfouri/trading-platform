@@ -5,49 +5,45 @@ strategies:
     enabled_strategies:
       - "sma_crossover"
       - "rsi_mean_reversion"
-      - "bollinger_bands"
-      - "momentum"
-      - "mean_reversion"
       
     # Strategy Settings
-    settings:
-      max_concurrent_strategies: 10
-      strategy_timeout: 300  # seconds
-      enable_parallel_execution: true
+    max_concurrent_strategies: 10
+    strategy_timeout: 300  # seconds
+    enable_parallel_execution: true
+    poll_interval_seconds: 5  # How often to poll database for new data
       
   # SMA Crossover Strategy
   sma_crossover:
     enabled: true
+    class: "src.strategies.implementations.sma_crossover.SMACrossover"
     parameters:
       short_window: 20
       long_window: 50
-      signal_threshold: 0.02  # 2% threshold for signal generation
+      quantity: 100
+      min_lookback: 60
     risk_management:
       position_size: 0.1  # 10% of portfolio
       stop_loss: 0.05     # 5% stop loss
       take_profit: 0.15   # 15% take profit
     symbols:
       - "AAPL"
-      - "MSFT"
-      - "GOOGL"
       
   # RSI Mean Reversion Strategy
   rsi_mean_reversion:
     enabled: true
+    class: "src.strategies.implementations.rsi_mean_reversion.RSIMeanReversion"
     parameters:
       rsi_period: 14
       oversold_threshold: 30
       overbought_threshold: 70
-      lookback_period: 20
+      quantity: 100
+      min_lookback: 30
     risk_management:
       position_size: 0.08  # 8% of portfolio
       stop_loss: 0.03      # 3% stop loss
       take_profit: 0.08    # 8% take profit
     symbols:
       - "AAPL"
-      - "MSFT"
-      - "GOOGL"
-      - "AMZN"
       
   # Bollinger Bands Strategy
   bollinger_bands:
