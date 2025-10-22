@@ -6,6 +6,7 @@ Consolidated from multiple entry points for simplicity
 
 import asyncio
 import argparse
+import sys
 from datetime import datetime, timedelta, timezone
 from typing import List
 

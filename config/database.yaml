@@ -3,7 +3,7 @@ database:
   # TimescaleDB/PostgreSQL Configuration
   postgresql:
     host: "localhost"
-    port: 5432
+    port: 6432
     database: "trading_platform"
     username: "trading_user"
     password: "trading_password"

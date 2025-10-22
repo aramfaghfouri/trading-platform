@@ -148,7 +148,7 @@ async def main() -> None:
     if not dsn:
         # Fallback to local defaults consistent with docker-compose setup
         dsn = (
-            f"postgresql://trading_user:trading_password@127.0.0.1:5432/trading_platform"
+            f"postgresql://trading_user:trading_password@127.0.0.1:6432/trading_platform"
         )
 
     timestamps = await fetch_sorted_timestamps(dsn, cfg.table_name)

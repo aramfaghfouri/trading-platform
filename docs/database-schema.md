@@ -266,7 +266,7 @@ import psycopg2
 
 conn = psycopg2.connect(
     host="localhost",
-    port="5432",
+    port="6432",
     database="trading_platform",
     user="trading_user",
     password="trading_password"
@@ -279,7 +279,7 @@ import asyncpg
 
 conn = await asyncpg.connect(
     host="localhost",
-    port="5432",
+    port="6432",
     database="trading_platform",
     user="trading_user",
     password="trading_password"

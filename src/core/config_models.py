@@ -93,7 +93,7 @@ class DatabaseConfig(BaseModel):
     """Complete database configuration."""
     # PostgreSQL/TimescaleDB settings
     host: str = "localhost"
-    port: int = Field(5432, ge=1, le=65535)
+    port: int = Field(6432, ge=1, le=65535)
     database: str = "trading_platform"
     username: str = "trading_user"
     password: str = "trading_password"

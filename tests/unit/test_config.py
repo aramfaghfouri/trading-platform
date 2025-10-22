@@ -134,7 +134,7 @@ class TestConfigManager:
             "database": {
                 "postgresql": {
                     "host": "localhost",
-                    "port": 5432
+                    "port": 6432
                 }
             },
             "api": {
@@ -150,7 +150,7 @@ class TestConfigManager:
         
         # Test valid paths
         assert manager.get_config_value("test.yaml", "database.postgresql.host") == "localhost"
-        assert manager.get_config_value("test.yaml", "database.postgresql.port") == 5432
+        assert manager.get_config_value("test.yaml", "database.postgresql.port") == 6432
         assert manager.get_config_value("test.yaml", "api.timeout") == 30
         
         # Test invalid paths
@@ -216,7 +216,7 @@ class TestDatabaseConfig:
         config = DatabaseConfig()
         
         assert config.host == "localhost"
-        assert config.port == 5432
+        assert config.port == 6432
         assert config.database == "trading_platform"
         assert config.username == "trading_user"
         assert config.password == "trading_password"

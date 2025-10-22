@@ -59,7 +59,7 @@ def mock_database_config():
     """Mock database configuration for tests."""
     return {
         "host": "localhost",
-        "port": 5432,
+        "port": 6432,
         "database": "test_trading_platform",
         "username": "test_user",
         "password": "test_password",
