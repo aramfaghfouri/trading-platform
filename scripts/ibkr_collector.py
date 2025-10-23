@@ -10,6 +10,7 @@ import asyncpg
 import sys
 import os
 import signal
+import threading
 from datetime import datetime, timezone, timedelta
 from typing import List, Optional
 import hashlib
@@ -30,10 +31,14 @@ class IBKRCollector:
         self.mode = mode  # "hybrid", "historical", or "realtime"
         self.running = False
         self.db_pool = None
-        self.check_interval = 30  # seconds - collect every 30 seconds regardless of market hours
+        # Dynamic check interval based on market hours
+        self.check_interval = 60 if self.mode == "realtime" else 300  # 1 min for realtime, 5 min for historical
         
         # Hybrid mode components
         self.historical_collector = None
+        self.realtime_thread = None
+        self.gap_filler_task = None
+        self.gap_filled = False
         
     async def start(self):
         """Start the data collector."""
@@ -74,6 +79,22 @@ class IBKRCollector:
         """Stop the collector and cleanup resources."""
         logger.info("🔌 Stopping IBKR collector...")
         self.running = False
+        
+        # Cancel gap filler task
+        if self.gap_filler_task and not self.gap_filler_task.done():
+            self.gap_filler_task.cancel()
+            try:
+                await self.gap_filler_task
+            except asyncio.CancelledError:
+                pass
+            logger.info("🔧 Gap filler task cancelled")
+        
+        # Wait for real-time thread to finish (it's a daemon thread)
+        if self.realtime_thread and self.realtime_thread.is_alive():
+            logger.info("📡 Waiting for real-time thread to finish...")
+            self.realtime_thread.join(timeout=5)
+            if self.realtime_thread.is_alive():
+                logger.warning("⚠️  Real-time thread did not stop gracefully")
         
         # Close database pool
         if self.db_pool:
@@ -151,31 +172,90 @@ class IBKRCollector:
                 await asyncio.sleep(10)  # Wait before retrying
     
     async def _hybrid_loop(self):
-        """Hybrid collection loop with gap detection and backfill."""
+        """Hybrid collection loop with real-time streaming and gap filling."""
         logger.info("🔄 Starting hybrid collection loop...")
         
-        # First, check for and fill any existing gaps
-        await self._initial_gap_check()
+        # Start real-time streaming in separate thread
+        self.realtime_thread = threading.Thread(
+            target=self._run_realtime_in_thread,
+            args=(self.symbols,),
+            daemon=True
+        )
+        self.realtime_thread.start()
+        logger.info("📡 Started real-time streaming thread")
         
-        # Use frequent polling for hybrid mode (every 10 seconds)
-        self.check_interval = 10
+        # Start gap filler as async task
+        self.gap_filler_task = asyncio.create_task(
+            self._gap_filler_loop()
+        )
+        logger.info("🔧 Started gap filler task")
         
-        # Main hybrid loop
-        while self.running:
+        # Wait for gap filler to complete or run indefinitely
+        try:
+            await asyncio.gather(
+                self.gap_filler_task,
+                return_exceptions=True
+            )
+        except Exception as e:
+            logger.error(f"❌ Error in hybrid loop: {e}")
+    
+    def _run_realtime_in_thread(self, symbols):
+        """Run real-time streaming in a separate thread with its own event loop."""
+        try:
+            # Create new event loop for this thread
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            
+            # Import here to avoid circular imports
+            from src.data_collectors.ibkr.realtime_stream import MultiSymbolRealtimeStreamer
+            
+            # Create and start the streamer
+            streamer = MultiSymbolRealtimeStreamer(
+                symbols=symbols,
+                host='127.0.0.1',
+                port=7497,
+                client_id=300,  # Use different client ID to avoid conflicts
+                aggregation_minutes=1,
+                batch_size=12,
+                enable_chart=False
+            )
+            
+            logger.info(f"🚀 Starting real-time streamer for {symbols}")
+            loop.run_until_complete(streamer.start())
+            
+        except Exception as e:
+            logger.error(f"❌ Error in real-time thread: {e}")
+    
+    async def _gap_filler_loop(self):
+        """Parallel gap filler that runs until gap is filled."""
+        logger.info("🔧 Starting gap filler loop...")
+        
+        while self.running and not self.gap_filled:
             try:
-                # Check for data gaps and collect if needed
+                # Check gap for each symbol
                 for symbol in self.symbols:
-                    await self._check_and_collect_symbol(symbol)
+                    gap_info = await self._check_gap(symbol)
+                    
+                    if gap_info['minutes'] > 1:
+                        logger.info(f"📊 Gap detected for {symbol}: {gap_info['minutes']:.1f} minutes")
+                        
+                        # Try to fill gap
+                        success = await self._backfill_gap(symbol, gap_info)
+                        if success:
+                            logger.info(f"✅ Successfully filled gap for {symbol}")
+                        else:
+                            logger.debug(f"⏳ Gap for {symbol} not yet available in IBKR historical API")
+                    else:
+                        logger.info(f"✅ Gap for {symbol} is filled ({gap_info['minutes']:.1f} minutes)")
+                        self.gap_filled = True
+                        break
                 
-                # Wait before next check
-                await asyncio.sleep(self.check_interval)
+                # Check every 60 seconds
+                await asyncio.sleep(60)
                 
-            except asyncio.CancelledError:
-                logger.info("👋 Hybrid collection loop cancelled")
-                break
             except Exception as e:
-                logger.error(f"❌ Error in hybrid collection loop: {e}")
-                await asyncio.sleep(10)
+                logger.error(f"❌ Error in gap filler: {e}")
+                await asyncio.sleep(30)
     
     async def _initial_gap_check(self):
         """Check for gaps on startup and backfill if needed."""
@@ -257,10 +337,17 @@ class IBKRCollector:
                 time_gap = current_time - latest_timestamp
                 gap_minutes = time_gap.total_seconds() / 60
                 
-                # Collect data regardless of market hours - IBKR has extended hours data
-                if gap_minutes >= 1:
+                # Smart collection strategy based on gap size and market hours
+                if gap_minutes >= 60:
+                    # Large gap - use historical API
                     logger.info(f"📊 Collecting {symbol} data (gap: {gap_minutes:.1f} minutes)")
                     await self._collect_historical_data(symbol, latest_timestamp, current_time)
+                elif gap_minutes >= 5 and self._is_market_hours(current_time):
+                    # Medium gap during market hours - try historical API
+                    logger.info(f"📊 Collecting {symbol} data during market hours (gap: {gap_minutes:.1f} minutes)")
+                    await self._collect_historical_data(symbol, latest_timestamp, current_time)
+                elif gap_minutes >= 1:
+                    logger.debug(f"⏳ {symbol} data gap too recent for historical API (gap: {gap_minutes:.1f} minutes) - waiting for next market session")
                 else:
                     logger.debug(f"⏳ {symbol} data is up to date (gap: {gap_minutes:.1f} minutes)")
             else:
@@ -334,6 +421,42 @@ class IBKRCollector:
         
         # Overnight (8:00 PM - 4:00 AM EST)
         return "overnight"
+    
+    def _is_market_hours(self, timestamp: datetime) -> bool:
+        """Check if the given timestamp is during market hours."""
+        return self._get_market_status(timestamp) == "market_hours"
+    
+    async def _check_gap(self, symbol: str) -> dict:
+        """Check current gap between latest DB data and now."""
+        latest = await self._get_latest_timestamp(symbol)
+        now = datetime.now(timezone.utc)
+        gap_minutes = (now - latest).total_seconds() / 60 if latest else 999
+        return {
+            'start': latest,
+            'end': now,
+            'minutes': gap_minutes
+        }
+    
+    async def _backfill_gap(self, symbol: str, gap_info: dict) -> bool:
+        """Try to backfill gap using historical API."""
+        try:
+            # Use historical collector
+            collector = IBKRHistoricalCollector()
+            client_id = self._get_client_id(symbol)
+            
+            result = await collector.collect_and_store(
+                symbol=symbol,
+                start=gap_info['start'].strftime('%Y%m%d %H:%M:%S'),
+                end=gap_info['end'].strftime('%Y%m%d %H:%M:%S'),
+                timeframe='1m',
+                client_id=client_id
+            )
+            
+            return result['success'] and result['inserted'] > 0
+            
+        except Exception as e:
+            logger.error(f"❌ Error backfilling gap for {symbol}: {e}")
+            return False
     
     def _get_client_id(self, symbol: str) -> int:
         """Generate unique client ID based on symbol, process ID, and timestamp."""

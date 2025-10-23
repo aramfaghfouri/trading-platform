@@ -381,6 +381,19 @@ start_ibkr_collector() {
         print_error "IBKR collector failed"; exit 1; }
 }
 
+# Function to start real-time IBKR collector
+start_ibkr_realtime() {
+    local symbol="${1:-AAPL}"
+    print_status "Starting real-time IBKR collector for ${symbol}..."
+    
+    cd "$PROJECT_ROOT"
+    eval "$(conda shell.bash hook)"
+    conda activate env-trading
+    
+    python scripts/ibkr_realtime_collector.py "$symbol" || {
+        print_error "Real-time IBKR collector failed"; exit 1; }
+}
+
     # Function to start live chart from database
     chart_live() {
         local symbol="${1:-AAPL}"
@@ -434,8 +447,10 @@ show_help() {
     echo "  --migrate-data        Migrate data from old table structure"
     echo ""
     echo "Real-time Chart Commands:"
-    echo "  --start-ibkr-collector SYMBOL"
-    echo "                        Start background IBKR data collector"
+    echo "  --start-ibkr-collector SYMBOL [MODE]"
+    echo "                        Start background IBKR data collector (hybrid/historical/realtime)"
+    echo "  --start-ibkr-realtime SYMBOL"
+    echo "                        Start real-time streaming collector (5s bars → 1m aggregation)"
     echo "  --chart-live SYMBOL [--update-freq minute|realtime]"
     echo "                        Launch live chart from database"
     echo ""
@@ -567,6 +582,11 @@ main() {
             symbol="${2:-AAPL}"
             mode="${3:-hybrid}"
             start_ibkr_collector "$symbol" "$mode"
+            ;;
+        --start-ibkr-realtime)
+            check_requirements
+            symbol="${2:-AAPL}"
+            start_ibkr_realtime "$symbol"
             ;;
         --chart-live)
             check_requirements

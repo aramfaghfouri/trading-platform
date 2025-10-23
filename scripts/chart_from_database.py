@@ -12,8 +12,9 @@ import asyncpg
 import pandas as pd
 import sys
 import os
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Optional
+import pytz
 
 # Add project root to Python path
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -29,7 +30,7 @@ class DatabaseChart:
     def __init__(self, symbol: str, update_freq: str = "minute"):
         self.symbol = symbol.upper()
         self.update_freq = update_freq
-        self.update_interval = 30 if update_freq == "minute" else 5  # seconds
+        self.update_interval = 10 if update_freq == "minute" else 5  # seconds
         self.chart = None
         self.df = pd.DataFrame()
         self.running = False
@@ -86,8 +87,12 @@ class DatabaseChart:
                 self.df['timestamp'] = pd.to_datetime(self.df['timestamp'])
                 self.df = self.df.sort_values('timestamp')
                 
-                # Prepare for chart
-                self.df['time'] = self.df['timestamp'].dt.strftime('%Y-%m-%d %H:%M:%S')
+                # Convert UTC to EST for chart display
+                est = pytz.timezone('US/Eastern')
+                self.df['timestamp_est'] = self.df['timestamp'].dt.tz_convert(est)
+                
+                # Prepare for chart (use EST time)
+                self.df['time'] = self.df['timestamp_est'].dt.strftime('%Y-%m-%d %H:%M:%S')
                 self.df['open'] = self.df['open'].astype(float)
                 self.df['high'] = self.df['high'].astype(float)
                 self.df['low'] = self.df['low'].astype(float)
@@ -114,7 +119,7 @@ class DatabaseChart:
         self.chart.set(chart_df)
         
         # Set chart properties
-        self.chart.watermark(f"{self.symbol} - Live from Database ({self.update_freq} updates)")
+        self.chart.watermark(f"{self.symbol} - Live from Database (EST) ({self.update_freq} updates)")
         self.chart.time_scale(visible=True, time_visible=True, seconds_visible=False)
         
         logger.info(f"📈 Chart created with {len(chart_df)} data points")
