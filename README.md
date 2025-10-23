@@ -31,7 +31,7 @@ A comprehensive trading platform built with VectorBT, Polygon.io, and Interactiv
 - **Backend**: Python 3.11+ with asyncio
 - **Database**: TimescaleDB (time-series data with compression and continuous aggregates)
 - **Data Source**: Interactive Brokers (IBKR) for real-time and historical market data
-- **Trading**: Interactive Brokers TWS API via ib_insync
+- **Trading**: Interactive Brokers TWS API via ib_async
 - **Strategy Engine**: VectorBT for backtesting and portfolio optimization
 - **Configuration**: Pydantic models with YAML configuration files
 - **Deployment**: Docker & Docker Compose

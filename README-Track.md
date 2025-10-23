@@ -45,7 +45,7 @@ This document tracks the progress of implementing the live trading platform with
 
 - [x] **Dependencies Installation**
   - [x] Install VectorBT and core dependencies
-  - [x] Install Polygon.io client and ib_insync
+  - [x] Install Polygon.io client and ib_async
   - [x] Install TimescaleDB Python client
   - [x] Install testing and development tools
   - [x] Create requirements.txt and setup.py
@@ -199,7 +199,7 @@ This document tracks the progress of implementing the live trading platform with
 
 #### Week 5: IBKR Connection & Orders
 - [ ] **IBKR Client Setup**
-  - [ ] Install and configure ib_insync
+  - [ ] Install and configure ib_async
   - [ ] Create IBKR connection manager
   - [ ] Implement connection monitoring
   - [ ] Add authentication handling

@@ -36,8 +36,8 @@ class IBKRCollector:
         
         # Hybrid mode components
         self.historical_collector = None
-        self.realtime_thread = None
         self.gap_filler_task = None
+        self.realtime_task = None
         self.gap_filled = False
         
     async def start(self):
@@ -80,21 +80,16 @@ class IBKRCollector:
         logger.info("🔌 Stopping IBKR collector...")
         self.running = False
         
-        # Cancel gap filler task
-        if self.gap_filler_task and not self.gap_filler_task.done():
-            self.gap_filler_task.cancel()
-            try:
-                await self.gap_filler_task
-            except asyncio.CancelledError:
-                pass
-            logger.info("🔧 Gap filler task cancelled")
-        
-        # Wait for real-time thread to finish (it's a daemon thread)
-        if self.realtime_thread and self.realtime_thread.is_alive():
-            logger.info("📡 Waiting for real-time thread to finish...")
-            self.realtime_thread.join(timeout=5)
-            if self.realtime_thread.is_alive():
-                logger.warning("⚠️  Real-time thread did not stop gracefully")
+        # Cancel async tasks
+        tasks_to_cancel = [self.gap_filler_task, self.realtime_task]
+        for task in tasks_to_cancel:
+            if task and not task.done():
+                task.cancel()
+                try:
+                    await task
+                except asyncio.CancelledError:
+                    pass
+        logger.info("🔧 Async tasks cancelled")
         
         # Close database pool
         if self.db_pool:
@@ -172,17 +167,8 @@ class IBKRCollector:
                 await asyncio.sleep(10)  # Wait before retrying
     
     async def _hybrid_loop(self):
-        """Hybrid collection loop with real-time streaming and gap filling."""
+        """Hybrid collection loop with intelligent polling and gap filling."""
         logger.info("🔄 Starting hybrid collection loop...")
-        
-        # Start real-time streaming in separate thread
-        self.realtime_thread = threading.Thread(
-            target=self._run_realtime_in_thread,
-            args=(self.symbols,),
-            daemon=True
-        )
-        self.realtime_thread.start()
-        logger.info("📡 Started real-time streaming thread")
         
         # Start gap filler as async task
         self.gap_filler_task = asyncio.create_task(
@@ -190,41 +176,92 @@ class IBKRCollector:
         )
         logger.info("🔧 Started gap filler task")
         
-        # Wait for gap filler to complete or run indefinitely
+        # Start real-time streaming task with proper 1-minute aggregation
+        self.realtime_task = asyncio.create_task(
+            self._realtime_streaming_loop()
+        )
+        logger.info("🔄 Started real-time streaming task")
+        
+        # Wait for tasks to complete or run indefinitely
         try:
             await asyncio.gather(
                 self.gap_filler_task,
+                self.realtime_task,
                 return_exceptions=True
             )
         except Exception as e:
             logger.error(f"❌ Error in hybrid loop: {e}")
     
-    def _run_realtime_in_thread(self, symbols):
-        """Run real-time streaming in a separate thread with its own event loop."""
+    async def _intelligent_polling_loop(self):
+        """Intelligent polling loop that adapts frequency based on market conditions."""
+        logger.info("🔄 Starting intelligent polling loop...")
+        
+        while self.running:
+            try:
+                current_time = datetime.now(timezone.utc)
+                is_market_hours = self._is_market_hours(current_time)
+                
+                # Adaptive polling frequency
+                if is_market_hours:
+                    # During market hours: poll every 30 seconds for real-time data
+                    poll_interval = 30
+                    logger.debug("📈 Market hours - polling every 30 seconds")
+                else:
+                    # Off-hours: poll every 5 minutes
+                    poll_interval = 300
+                    logger.debug("🌙 Off-hours - polling every 5 minutes")
+                
+                # Check for data gaps and collect if needed
+                for symbol in self.symbols:
+                    await self._check_and_collect_symbol(symbol)
+                
+                # Wait before next check
+                await asyncio.sleep(poll_interval)
+                
+            except Exception as e:
+                logger.error(f"❌ Error in intelligent polling: {e}")
+                await asyncio.sleep(30)
+    
+    async def _realtime_streaming_loop(self):
+        """Real-time streaming loop using the fixed MultiSymbolRealtimeStreamer."""
+        logger.info("🔄 Starting real-time streaming loop...")
+        
         try:
-            # Create new event loop for this thread
-            loop = asyncio.new_event_loop()
-            asyncio.set_event_loop(loop)
-            
-            # Import here to avoid circular imports
             from src.data_collectors.ibkr.realtime_stream import MultiSymbolRealtimeStreamer
             
-            # Create and start the streamer
+            # Create real-time streamer with proper 1-minute aggregation
             streamer = MultiSymbolRealtimeStreamer(
-                symbols=symbols,
-                host='127.0.0.1',
-                port=7497,
-                client_id=300,  # Use different client ID to avoid conflicts
+                symbols=self.symbols,
+                client_id=self._get_client_id(self.symbols[0]),
                 aggregation_minutes=1,
-                batch_size=12,
+                batch_size=1,  # Write each 1-minute candle immediately
                 enable_chart=False
             )
             
-            logger.info(f"🚀 Starting real-time streamer for {symbols}")
-            loop.run_until_complete(streamer.start())
+            # Start streaming in a separate thread to avoid event loop conflicts
+            import threading
+            import time
             
+            def run_streamer():
+                try:
+                    streamer.start()
+                    streamer.run()
+                except Exception as e:
+                    logger.error(f"❌ Real-time streaming error: {e}")
+            
+            # Start streaming thread
+            streamer_thread = threading.Thread(target=run_streamer, daemon=True)
+            streamer_thread.start()
+            logger.info("🚀 Real-time streaming started in background thread")
+            
+            # Keep the task alive
+            while self.running:
+                await asyncio.sleep(1)
+                
         except Exception as e:
-            logger.error(f"❌ Error in real-time thread: {e}")
+            logger.error(f"❌ Error starting real-time streaming: {e}")
+            await asyncio.sleep(30)
+    
     
     async def _gap_filler_loop(self):
         """Parallel gap filler that runs until gap is filled."""

@@ -1,6 +1,6 @@
 """
 Standalone AAPL 1-minute real-time chart + printer using:
-  - ib_insync (IBKR real-time bars @ 5s)
+  - ib_async (IBKR real-time bars @ 5s)
   - lightweight-charts (direct library API)
 
 This file is self-contained and does not depend on the project wrappers.
@@ -21,7 +21,7 @@ from datetime import datetime, timedelta
 from typing import Deque, Dict, Any, Optional
 
 import pandas as pd
-from ib_insync import IB, Stock
+from ib_async import IB, Stock
 from lightweight_charts import Chart
 
 
@@ -176,7 +176,7 @@ def main() -> None:
     print('✅ Listening for 1-minute bars. Press Ctrl+C to stop.')
     try:
         while not stop['flag']:
-            ib.sleep(0.2)  # let ib_insync process events
+            ib.sleep(0.2)  # let ib_async process events
     finally:
         try:
             ib.cancelRealTimeBars(req_id)

@@ -1,7 +1,7 @@
 from __future__ import annotations
 from typing import Any, Optional
 import pandas as pd
-from ib_insync import util
+from ib_async import util
 
 from src.brokers.base import BrokerBase
 from src.brokers.ibkr.client import IBClient
@@ -69,7 +69,7 @@ class IBBroker(BrokerBase):
         return self.client.place_order(symbol, action, qty, limit)
 
     def cancel_order(self, order_id: Any) -> None:
-        # ib_insync cancel could be wired if we stored trade refs; omitted for brevity
+        # ib_async cancel could be wired if we stored trade refs; omitted for brevity
         pass
 
     def order_status(self, order_id: Any) -> dict:

@@ -1,6 +1,6 @@
 import os
 from typing import List
-from ib_insync import IB, Stock, MarketOrder, LimitOrder
+from ib_async import IB, Stock, MarketOrder, LimitOrder
 
 
 class IBClient:

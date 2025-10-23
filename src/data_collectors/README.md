@@ -8,7 +8,7 @@ This directory contains data collection modules for the trading platform, follow
 src/data_collectors/
 ├── common/                   # Shared, broker-agnostic utilities (e.g. Timescale storage)
 ├── ibkr/                     # Interactive Brokers collectors
-│   ├── client.py             # Async data client over ib_insync
+│   ├── client.py             # Async data client over ib_async
 │   ├── collection_manager.py # Historical job orchestration
 │   ├── data_storage.py       # IBKR storage wrapper
 │   ├── historical.py         # Historical collector facade

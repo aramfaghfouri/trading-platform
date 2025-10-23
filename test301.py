@@ -205,6 +205,9 @@ def onBarUpdate(bars, hasNewBar):
         print(f"-> Starting new 1-min datapoint for {current_bar['bar_start_time']}")
 
 # Request the 5-second bars
+ib = IB()
+ib.connect('127.0.0.1', 7497, clientId=99)
+contract = Stock("AAPL", "SMART", "USD")
 realtime_bars = ib.reqRealTimeBars(contract, 5, 'MIDPOINT', False)
 realtime_bars.updateEvent += onBarUpdate
 

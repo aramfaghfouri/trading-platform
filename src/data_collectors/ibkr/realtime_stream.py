@@ -70,11 +70,42 @@ class SymbolStreamer:
         
     def process_bar(self, bar: Any, timestamp: datetime) -> Optional[Dict[str, Any]]:
         """
-        Process a new 5-second bar, update aggregation state.
-        Returns completed aggregated bar if one is finalized.
+        Process a new 5-second bar and aggregate into 1-minute candles.
+        Returns completed 1-minute candle if one is finalized.
         """
         self.bars_received += 1
         self.last_bar_time = timestamp
+        
+        # Get the minute start time for aggregation
+        minute_start = timestamp.replace(second=0, microsecond=0)
+        
+        # Check if we're in a new minute
+        if self._agg_state and self._agg_state['minute_start'] != minute_start:
+            # Complete the previous minute candle
+            completed_agg = self._agg_state.copy()
+            completed_agg['timestamp'] = self._agg_state['minute_start']
+            self.agg_buffer.append(completed_agg)
+            self.pending_writes.append(completed_agg)
+            self._agg_state = None
+        
+        # Start new minute candle if needed
+        if self._agg_state is None:
+            self._agg_state = {
+                'minute_start': minute_start,
+                'open': float(getattr(bar, 'open_', getattr(bar, 'open'))),
+                'high': float(getattr(bar, 'high_', getattr(bar, 'high'))),
+                'low': float(getattr(bar, 'low_', getattr(bar, 'low'))),
+                'close': float(getattr(bar, 'close_', getattr(bar, 'close'))),
+                'volume': int(getattr(bar, 'volume', 0) or 0),
+                'bar_count': 1
+            }
+        else:
+            # Update current minute candle
+            self._agg_state['high'] = max(self._agg_state['high'], float(getattr(bar, 'high_', getattr(bar, 'high'))))
+            self._agg_state['low'] = min(self._agg_state['low'], float(getattr(bar, 'low_', getattr(bar, 'low'))))
+            self._agg_state['close'] = float(getattr(bar, 'close_', getattr(bar, 'close')))
+            self._agg_state['volume'] += int(getattr(bar, 'volume', 0) or 0)
+            self._agg_state['bar_count'] += 1
         
         # Store raw bar in memory buffer
         raw_bar = {
@@ -86,40 +117,9 @@ class SymbolStreamer:
             'volume': int(getattr(bar, 'volume', 0) or 0),
         }
         self.raw_buffer.append(raw_bar)
-        self.pending_writes.append(raw_bar)
         
-        # Update aggregation
-        completed_agg = None
-        if self._agg_state and timestamp >= self._agg_state['end']:
-            # Current aggregation period ended
-            completed_agg = self._agg_state.copy()
-            self.agg_buffer.append(completed_agg)
-            self._agg_state = None
-        
-        if self._agg_state is None:
-            # Start new aggregation period
-            period_start_epoch = (int(timestamp.timestamp()) // self._agg_period_seconds) * self._agg_period_seconds
-            period_start = datetime.fromtimestamp(period_start_epoch, tz=timezone.utc)
-            period_end = period_start + timedelta(seconds=self._agg_period_seconds)
-            
-            self._agg_state = {
-                'timestamp': period_start,
-                'start': period_start,
-                'end': period_end,
-                'open': raw_bar['open'],
-                'high': raw_bar['high'],
-                'low': raw_bar['low'],
-                'close': raw_bar['close'],
-                'volume': raw_bar['volume'],
-            }
-        else:
-            # Update current aggregation
-            self._agg_state['high'] = max(self._agg_state['high'], raw_bar['high'])
-            self._agg_state['low'] = min(self._agg_state['low'], raw_bar['low'])
-            self._agg_state['close'] = raw_bar['close']
-            self._agg_state['volume'] += raw_bar['volume']
-        
-        return completed_agg
+        # Return completed aggregation if available
+        return None  # We'll handle completion in the next bar
     
     def get_pending_writes(self) -> List[Dict[str, Any]]:
         """Get and clear pending write buffer."""
@@ -203,23 +203,26 @@ class MultiSymbolRealtimeStreamer:
             streamer = self.streamers[symbol]
             completed_agg = streamer.process_bar(bar, timestamp)
             
-            # Log bar
+            # Log 5-second bar
             logger.debug(
                 f"[{symbol}] 5s bar: {timestamp.isoformat()} "
                 f"O:{bar.open_:.2f} H:{bar.high_:.2f} L:{bar.low_:.2f} C:{bar.close_:.2f} V:{bar.volume}"
             )
             
-            # If aggregated bar completed, log it and update chart
-            if completed_agg:
+            # Check if we have a completed 1-minute candle
+            if streamer._agg_state is None and streamer.agg_buffer:
+                # Get the latest completed candle
+                completed_candle = streamer.agg_buffer[-1]
                 logger.info(
-                    f"[{symbol}] {self.aggregation_minutes}m bar: {completed_agg['start'].isoformat()} "
-                    f"O:{completed_agg['open']:.2f} H:{completed_agg['high']:.2f} "
-                    f"L:{completed_agg['low']:.2f} C:{completed_agg['close']:.2f} V:{completed_agg['volume']}"
+                    f"[{symbol}] 1m CANDLE: {completed_candle['timestamp'].isoformat()} "
+                    f"O:{completed_candle['open']:.2f} H:{completed_candle['high']:.2f} "
+                    f"L:{completed_candle['low']:.2f} C:{completed_candle['close']:.2f} "
+                    f"V:{completed_candle['volume']} ({completed_candle['bar_count']} bars)"
                 )
                 
                 # Update chart if this is the chart symbol
                 if self.enable_chart and symbol == self.chart_symbol and self.chart:
-                    self._update_chart(completed_agg)
+                    self._update_chart(completed_candle)
             
             # Queue batch write if threshold reached
             if streamer.should_write() and self._loop:
@@ -277,8 +280,8 @@ class MultiSymbolRealtimeStreamer:
                 if not bars:
                     continue
                 
-                # Write to database
-                timeframe = '5s'  # Raw bars are 5-second
+                # Write to database - store 1-minute candles
+                timeframe = '1m'  # Store 1-minute aggregated candles
                 result = await self.storage.store_ohlcv(symbol, timeframe, bars)
                 
                 if result.success:

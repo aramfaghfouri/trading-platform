@@ -14,7 +14,7 @@ import sys
 from datetime import datetime, timezone
 from typing import Optional, Dict, Any
 
-from ib_insync import IB, Stock
+from ib_async import IB, Stock
 
 
 def minute_floor(ts: datetime) -> datetime:

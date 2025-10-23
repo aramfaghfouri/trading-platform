@@ -5,7 +5,7 @@ from datetime import datetime, timedelta
 import time
 import sys
 
-from ib_insync import IB, Stock, util
+from ib_async import IB, Stock, util
 from loguru import logger
 
 # Configure logger to show all levels

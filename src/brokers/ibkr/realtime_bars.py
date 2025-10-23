@@ -13,7 +13,7 @@ from collections import deque
 import threading
 import time
 
-from ib_insync import IB, Stock, RealTimeBar
+from ib_async import IB, Stock, RealTimeBar
 from loguru import logger
 
 from src.brokers.ibkr.adapters import IBBroker

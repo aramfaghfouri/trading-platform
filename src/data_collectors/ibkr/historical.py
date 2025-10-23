@@ -5,7 +5,7 @@ import asyncio
 
 import pandas as pd
 from loguru import logger
-from ib_insync import Stock, util
+from ib_async import Stock, util
 from src.core.config_loader import ConfigLoader
 
 from src.data_pipeline.base import HistoricalProviderBase
