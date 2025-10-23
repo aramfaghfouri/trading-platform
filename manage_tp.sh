@@ -367,6 +367,52 @@ migrate_data() {
     fi
 }
 
+# Function to start IBKR collector
+start_ibkr_collector() {
+    local symbol="${1:-AAPL}"
+    local mode="${2:-hybrid}"
+    print_status "Starting IBKR collector for ${symbol} in ${mode} mode..."
+    
+    cd "$PROJECT_ROOT"
+    eval "$(conda shell.bash hook)"
+    conda activate env-trading
+    
+    python scripts/ibkr_collector.py "$symbol" --mode "$mode" || {
+        print_error "IBKR collector failed"; exit 1; }
+}
+
+    # Function to start live chart from database
+    chart_live() {
+        local symbol="${1:-AAPL}"
+        local update_freq="${2:-minute}"
+        print_status "Starting live chart for ${symbol} (update: ${update_freq})..."
+        
+        cd "$PROJECT_ROOT"
+        eval "$(conda shell.bash hook)"
+        conda activate env-trading
+        
+        python scripts/chart_from_database.py "$symbol" --update-freq "$update_freq" || {
+            print_error "Live chart failed"; exit 1; }
+    }
+
+    # Function to monitor data in real-time
+    monitor_data() {
+        local symbol="${1:-AAPL}"
+        print_status "Starting data monitor for ${symbol}..."
+        
+        cd "$PROJECT_ROOT"
+        eval "$(conda shell.bash hook)"
+        conda activate env-trading
+        
+        python scripts/monitor_data.py "$symbol" || {
+            print_error "Data monitor failed"; exit 1; }
+    }
+
+    # Function to start async data collector (alias for unified collector)
+    start_async_collector() {
+        start_ibkr_collector "$@"
+    }
+
 # Function to show help
 show_help() {
     echo "Trading Platform Management Script"
@@ -387,6 +433,12 @@ show_help() {
     echo "  --debug-collector     Debug collector functionality"
     echo "  --migrate-data        Migrate data from old table structure"
     echo ""
+    echo "Real-time Chart Commands:"
+    echo "  --start-ibkr-collector SYMBOL"
+    echo "                        Start background IBKR data collector"
+    echo "  --chart-live SYMBOL [--update-freq minute|realtime]"
+    echo "                        Launch live chart from database"
+    echo ""
     echo "IBKR Broker Commands:"
     echo "  --ib-connect          Test IBKR connectivity"
     echo "  --ib-summary          Show IBKR account summary"
@@ -406,8 +458,19 @@ show_help() {
     echo "  $0 --debug-collector"
     echo "  $0 --migrate-data"
     echo ""
+    echo "Real-time Chart Examples:"
+    echo "  $0 --start-ibkr-collector AAPL                    # Start hybrid collector (default)"
+    echo "  $0 --start-ibkr-collector AAPL historical        # Historical-only mode"
+    echo "  $0 --start-ibkr-collector AAPL realtime          # Real-time only mode"
+    echo "  $0 --chart-live AAPL                              # Launch chart (minute updates)"
+    echo "  $0 --chart-live AAPL realtime                     # Launch chart (5s updates)"
+    echo "  $0 --monitor-data AAPL                            # Monitor data points in real-time"
+    echo ""
     echo "Full workflow:"
     echo "  $0 --delete-databases && $0 --start-database && $0 --collect-data"
+    echo ""
+    echo "Real-time workflow:"
+    echo "  $0 --start-database && $0 --start-ibkr-collector AAPL && $0 --chart-live AAPL"
     echo ""
     echo "Testing workflow:"
     echo "  $0 --start-database && $0 --collect-sample && $0 --check-database"
@@ -498,6 +561,28 @@ main() {
         --migrate-data)
             check_requirements
             migrate_data
+            ;;
+        --start-ibkr-collector)
+            check_requirements
+            symbol="${2:-AAPL}"
+            mode="${3:-hybrid}"
+            start_ibkr_collector "$symbol" "$mode"
+            ;;
+        --chart-live)
+            check_requirements
+            symbol="${2:-AAPL}"
+            update_freq="${3:-minute}"
+            chart_live "$symbol" "$update_freq"
+            ;;
+        --monitor-data)
+            check_requirements
+            symbol="${2:-AAPL}"
+            monitor_data "$symbol"
+            ;;
+        --start-async-collector)
+            check_requirements
+            symbol="${2:-AAPL}"
+            start_async_collector "$symbol"
             ;;
         --ib-connect)
             ib_connect

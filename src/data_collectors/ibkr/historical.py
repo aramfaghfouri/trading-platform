@@ -43,9 +43,12 @@ class IBKRHistoricalCollector(HistoricalProviderBase):
             logger.exception("Full traceback:")
             return pd.DataFrame()
 
-    async def collect_and_store(self, symbol: str, start: str, end: str, timeframe: str) -> dict:
+    async def collect_and_store(self, symbol: str, start: str, end: str, timeframe: str, client_id: Optional[int] = None) -> dict:
         """Scaffold method: when implemented, will store to ibkr_ohlcv_<symbol>_<tf>."""
         logger.info("🔄 Starting collection for {} ({} to {}, {})", symbol, start, end, timeframe)
+        # Create a new client with the specified client_id if provided
+        if client_id is not None:
+            self.client = IBKRDataClient(client_id=client_id)
         df = await self._fetch_historical(symbol, start, end, timeframe)
         records: List[Dict[str, Any]] = []
         if not df.empty:

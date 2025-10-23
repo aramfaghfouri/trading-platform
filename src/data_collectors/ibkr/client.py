@@ -63,8 +63,10 @@ def _format_ib_duration(start_dt: datetime, end_dt: datetime) -> str:
 class IBKRDataClient:
     """Lightweight async client for fetching historical bars from IBKR."""
 
-    def __init__(self, broker: Optional[IBBroker] = None):
+    def __init__(self, broker: Optional[IBBroker] = None, client_id: Optional[int] = None):
         self.broker = broker or IBBroker()
+        if client_id is not None:
+            self.broker.client.client_id = client_id
         self.loader = ConfigLoader()
         self._connected = False
 

@@ -126,7 +126,7 @@ class IBKRRealtimeBarStream:
             self.subscribed_symbols[symbol] = req_id
             
             # Set up bar update callback
-            self.ib.realTimeBarUpdateEvent += self._on_bar_update
+            self.ib.barUpdateEvent += self._on_bar_update
             
             logger.info(f"Subscribed to {bar_size}s bars for {symbol} (reqId: {req_id})")
             

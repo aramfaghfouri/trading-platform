@@ -4,8 +4,8 @@ A comprehensive trading platform built with VectorBT, Polygon.io, and Interactiv
 
 ## 🚀 Features
 
+- **Hybrid IBKR Data Collection**: Real-time streaming + historical backfill with automatic gap detection
 - **VectorBT Integration**: Advanced backtesting, portfolio optimization, and strategy development
-- **Polygon.io Data Collection**: Historical and real-time market data with minute-level precision
 - **Interactive Brokers Integration**: Live trading execution and portfolio management
 - **TimescaleDB Storage**: High-performance time-series database for market data
 - **Flexible Configuration**: YAML-based configuration with environment variable overrides
@@ -13,12 +13,13 @@ A comprehensive trading platform built with VectorBT, Polygon.io, and Interactiv
 - **Rate Limiting**: Intelligent API rate limiting and error handling
 - **Docker Support**: Containerized deployment and development
 - **Modular Architecture**: Clean separation of concerns with organized code structure
+- **Async/Non-blocking**: All operations use asyncio for optimal performance
 
 ## 🏗️ Architecture
 
 ### Core Components
 
-- **Data Collection**: Polygon.io integration for historical and real-time market data
+- **Hybrid Data Collection**: IBKR real-time streaming + historical backfill with automatic gap detection
 - **Data Storage**: TimescaleDB for high-performance time-series data storage
 - **Strategy Framework**: VectorBT-based strategy development and backtesting
 - **Trading Execution**: Interactive Brokers integration for live trading
@@ -29,53 +30,95 @@ A comprehensive trading platform built with VectorBT, Polygon.io, and Interactiv
 
 - **Backend**: Python 3.11+ with asyncio
 - **Database**: TimescaleDB (time-series data with compression and continuous aggregates)
-- **Data Source**: Polygon.io API for market data
+- **Data Source**: Interactive Brokers (IBKR) for real-time and historical market data
 - **Trading**: Interactive Brokers TWS API via ib_insync
 - **Strategy Engine**: VectorBT for backtesting and portfolio optimization
 - **Configuration**: Pydantic models with YAML configuration files
 - **Deployment**: Docker & Docker Compose
 
+## 🔄 Hybrid IBKR Data Collection System
+
+### Overview
+
+The platform features a sophisticated hybrid data collection system that automatically combines real-time streaming with historical backfill to ensure complete, gap-free market data:
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                Hybrid IBKR Data Collector                  │
+│                                                             │
+│  ┌─────────────────┐    ┌─────────────────────────────────┐ │
+│  │  Real-time      │    │        Historical               │ │
+│  │  Streaming      │    │        Backfill                 │ │
+│  │                 │    │                                 │ │
+│  │  • 5s bars      │    │  • Gap detection               │ │
+│  │  • 1m agg       │    │  • Historical API              │ │
+│  │  • Live data    │    │  • Off-hours data              │ │
+│  └─────────┬───────┘    └─────────────┬───────────────────┘ │
+│            │                          │                     │
+│            └──────────┬───────────────┘                     │
+│                       ▼                                     │
+│            ┌─────────────────────────┐                      │
+│            │    Gap Detection &      │                      │
+│            │    Automatic Backfill   │                      │
+│            └─────────┬───────────────┘                      │
+│                      │                                      │
+└──────────────────────┼──────────────────────────────────────┘
+                       ▼
+            ┌─────────────────────────┐
+            │      TimescaleDB        │
+            │                         │
+            │  ibkr_ohlcv_*_1m       │◄──── Complete data
+            │  strategy_state         │
+            │  strategy_signals       │
+            └─────────┬───────────────┘
+                      │
+                      ├──────────────┬──────────────┬──────────────┐
+                      ▼              ▼              ▼              ▼
+               ┌──────────┐   ┌──────────┐   ┌──────────┐   ┌──────────┐
+               │ Strategy │   │ Strategy │   │ Strategy │   │ Strategy │
+               │   SMA    │   │   RSI    │   │  Custom  │   │  Custom  │
+               │          │   │          │   │          │   │          │
+               └──────────┘   └──────────┘   └──────────┘   └──────────┘
+```
+
+### Collection Modes
+
+The system supports three collection modes:
+
+#### 1. **Hybrid Mode** (Default - Recommended)
+- **Automatic gap detection**: Detects missing data and backfills automatically
+- **Real-time streaming**: 5-second bars aggregated to 1-minute during market hours
+- **Historical backfill**: Fills gaps using IBKR historical API
+- **Smart switching**: Automatically switches between real-time and historical based on data availability
+- **Off-hours collection**: Continues collecting data even when markets are closed
+
+#### 2. **Historical Mode**
+- **Polling-based**: Checks for new data every 30 seconds
+- **Historical API only**: Uses IBKR historical API for all data
+- **Gap-aware**: Automatically detects and fills data gaps
+- **Off-hours friendly**: Ideal for backfilling old data or collecting during off-hours
+
+#### 3. **Real-time Mode**
+- **Streaming only**: 5-second bars aggregated to 1-minute
+- **Low latency**: Data available within 5-10 seconds
+- **Market hours**: Best for active trading during market hours
+- **Continuous connection**: Maintains persistent connection to IBKR
+
+### Key Features
+
+- **🔄 Automatic Gap Detection**: Continuously monitors for missing data and backfills automatically
+- **⚡ Real-time Streaming**: 5-second bars aggregated to 1-minute for optimal performance
+- **📊 Historical Backfill**: Seamlessly fills gaps using IBKR historical API
+- **🕐 Off-hours Collection**: Collects data even when markets are closed
+- **🔧 Async/Non-blocking**: All operations use asyncio for optimal performance
+- **🛡️ Error Recovery**: Automatic reconnection and error handling
+- **📈 Multiple Symbols**: Supports collecting data for multiple symbols simultaneously
+
 ## 🎯 Multi-Strategy Real-time Trading System
 
 ### Architecture Overview
 
-The platform now supports running multiple strategies in parallel, all reading from a centralized TimescaleDB:
-
-```
-┌─────────────────────┐
-│  Real-time Data     │
-│  Collector (IBKR)   │◄──── 5-second bars from IBKR
-│                     │
-│  - Multi-symbol     │
-│  - Batch writes     │
-│  - Optional chart   │
-└──────────┬──────────┘
-           │
-           ▼
-┌─────────────────────┐
-│   TimescaleDB       │
-│                     │
-│  ibkr_ohlcv_*_5s    │◄──── All real-time data
-│  strategy_state     │
-│  strategy_signals   │
-└──────────┬──────────┘
-           │
-           ├──────────────┬──────────────┬──────────────┐
-           ▼              ▼              ▼              ▼
-    ┌──────────┐   ┌──────────┐   ┌──────────┐   ┌──────────┐
-    │ Strategy │   │ Strategy │   │ Strategy │   │ Strategy │
-    │   SMA    │   │   RSI    │   │  Custom  │   │  Custom  │
-    │          │   │          │   │          │   │          │
-    └──────────┘   └──────────┘   └──────────┘   └──────────┘
-         │              │              │              │
-         └──────────────┴──────────────┴──────────────┘
-                          │
-                          ▼
-                 ┌─────────────────┐
-                 │  Order Manager  │
-                 │  (Future)       │
-                 └─────────────────┘
-```
+The platform supports running multiple strategies in parallel, all reading from a centralized TimescaleDB:
 
 ### Key Features
 
@@ -87,14 +130,22 @@ The platform now supports running multiple strategies in parallel, all reading f
 
 ### Quick Start: Running Strategies
 
-#### 1. Start Real-time Data Collection
+#### 1. Start Hybrid Data Collection
 
 ```bash
-# Start IBKR data collector for multiple symbols
-python scripts/start_realtime_stream.py AAPL MSFT GOOGL
+# Start hybrid IBKR collector (default - recommended)
+./manage_tp.sh --start-ibkr-collector AAPL
 
-# Or with chart for one symbol
-python scripts/start_realtime_stream.py --symbols AAPL,MSFT --chart --chart-symbol AAPL
+# Start with specific mode
+./manage_tp.sh --start-ibkr-collector AAPL hybrid    # Hybrid mode (default)
+./manage_tp.sh --start-ibkr-collector AAPL historical # Historical only
+./manage_tp.sh --start-ibkr-collector AAPL realtime   # Real-time only
+
+# Start for multiple symbols
+./manage_tp.sh --start-ibkr-collector AAPL,MSFT,GOOGL
+
+# Start with live chart
+./manage_tp.sh --chart-live AAPL
 ```
 
 #### 2. Manage Strategies
@@ -335,12 +386,35 @@ The easiest way to get started is using the management script:
 
 The `manage_tp.sh` script provides convenient commands:
 
+**Database Management:**
 - `--delete-databases` - Delete all databases and containers
 - `--start-database` - Start TimescaleDB
-- `--collect-data` - Collect data for all configured tickers
-- `--validate-config` - Validate configuration files
 - `--status` - Show system status
+
+**Data Collection:**
+- `--start-ibkr-collector <symbol> [mode]` - Start hybrid IBKR data collector
+- `--chart-live <symbol>` - Start live chart for symbol
+- `--monitor-data <symbol>` - Monitor data collection in real-time
+- `--collect-data` - Collect data for all configured tickers (legacy)
+
+**Configuration:**
+- `--validate-config` - Validate configuration files
 - `--help` - Show help message
+
+**Examples:**
+```bash
+# Start hybrid collector for AAPL
+./manage_tp.sh --start-ibkr-collector AAPL
+
+# Start historical-only collector for multiple symbols
+./manage_tp.sh --start-ibkr-collector AAPL,MSFT historical
+
+# Start live chart
+./manage_tp.sh --chart-live AAPL
+
+# Monitor data collection
+./manage_tp.sh --monitor-data AAPL
+```
 
 #### IB Paper Trading Quick Checks
 
@@ -595,10 +669,10 @@ This software is for educational and research purposes only. Trading involves su
 
 ---
 
-**Status**: 🚧 Phase 1 - Foundation Complete | **Version**: 0.1.0 | **Last Updated**: 2024-10-05
+**Status**: 🚀 Phase 2 - Hybrid Data Collection Complete | **Version**: 0.2.0 | **Last Updated**: 2025-10-22
 
 ### Current Status
-- ✅ **Phase 1 Complete**: TimescaleDB setup, Polygon.io integration, data collection
-- 🚧 **Phase 2 In Progress**: VectorBT strategy framework development
-- 📋 **Phase 3 Planned**: Interactive Brokers integration
+- ✅ **Phase 1 Complete**: TimescaleDB setup, data collection infrastructure
+- ✅ **Phase 2 Complete**: Hybrid IBKR data collection system with real-time streaming + historical backfill
+- 🚧 **Phase 3 In Progress**: VectorBT strategy framework development
 - 📋 **Phase 4 Planned**: Live trading and monitoring
