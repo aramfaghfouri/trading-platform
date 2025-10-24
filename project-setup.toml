@@ -87,7 +87,7 @@ end_date = "2025-10-22"
 d_max_days = 10
 symbols = ["NFLX",
 ]
-useRTH = true              # Regular Trading Hours only
+useRTH = false             # Include pre/post market data
 what_to_show = "TRADES"   # TRADES, MIDPOINT, BID, ASK, etc.
 
 [ibkr.connection]
@@ -196,6 +196,5 @@ enable_technical_analysis = true
 enable_heikin_ashi = true
 enable_peak_detection = true
 timezone = "America/New_York"
-
 
 
