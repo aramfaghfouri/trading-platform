@@ -74,6 +74,8 @@ class IBKRCollector:
         """Handle shutdown signals."""
         logger.info(f"🛑 Received signal {signum}, shutting down...")
         self.running = False
+        # Raise KeyboardInterrupt to properly exit asyncio.run()
+        raise KeyboardInterrupt()
     
     async def stop(self):
         """Stop the collector and cleanup resources."""
@@ -132,17 +134,26 @@ class IBKRCollector:
         while self.running:
             try:
                 for symbol in self.symbols:
+                    if not self.running:
+                        break
                     await self._check_and_collect_symbol(symbol)
                 
-                # Wait before next check
-                await asyncio.sleep(self.check_interval)
+                # Wait before next check - break sleep into chunks to respond faster to signals
+                for _ in range(self.check_interval):
+                    if not self.running:
+                        break
+                    await asyncio.sleep(1)
                 
             except asyncio.CancelledError:
                 logger.info("👋 Historical collection loop cancelled")
                 break
             except Exception as e:
                 logger.error(f"❌ Error in historical collection loop: {e}")
-                await asyncio.sleep(10)  # Wait before retrying
+                # Break sleep into chunks for faster interrupt response
+                for _ in range(10):
+                    if not self.running:
+                        break
+                    await asyncio.sleep(1)
     
     async def _realtime_only_loop(self):
         """Real-time only collection loop using frequent polling."""
@@ -154,17 +165,26 @@ class IBKRCollector:
         while self.running:
             try:
                 for symbol in self.symbols:
+                    if not self.running:
+                        break
                     await self._check_and_collect_symbol(symbol)
                 
-                # Wait before next check
-                await asyncio.sleep(self.check_interval)
+                # Wait before next check - break sleep into chunks for faster interrupt response
+                for _ in range(self.check_interval):
+                    if not self.running:
+                        break
+                    await asyncio.sleep(1)
                 
             except asyncio.CancelledError:
                 logger.info("👋 Real-time collection loop cancelled")
                 break
             except Exception as e:
                 logger.error(f"❌ Error in real-time collection loop: {e}")
-                await asyncio.sleep(10)  # Wait before retrying
+                # Break sleep into chunks for faster interrupt response
+                for _ in range(10):
+                    if not self.running:
+                        break
+                    await asyncio.sleep(1)
     
     async def _hybrid_loop(self):
         """Hybrid collection loop with intelligent polling and gap filling."""
@@ -271,6 +291,8 @@ class IBKRCollector:
             try:
                 # Check gap for each symbol
                 for symbol in self.symbols:
+                    if not self.running:
+                        break
                     gap_info = await self._check_gap(symbol)
                     
                     if gap_info['minutes'] > 1:
@@ -287,12 +309,19 @@ class IBKRCollector:
                         self.gap_filled = True
                         break
                 
-                # Check every 60 seconds
-                await asyncio.sleep(60)
+                # Check every 60 seconds - break sleep into chunks for faster interrupt response
+                for _ in range(60):
+                    if not self.running:
+                        break
+                    await asyncio.sleep(1)
                 
             except Exception as e:
                 logger.error(f"❌ Error in gap filler: {e}")
-                await asyncio.sleep(30)
+                # Break sleep into chunks for faster interrupt response
+                for _ in range(30):
+                    if not self.running:
+                        break
+                    await asyncio.sleep(1)
     
     async def _initial_gap_check(self):
         """Check for gaps on startup and backfill if needed."""
@@ -526,4 +555,11 @@ async def main():
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        logger.info("👋 Shutting down due to keyboard interrupt...")
+    except Exception as e:
+        logger.error(f"❌ Fatal error: {e}")
+        import traceback
+        traceback.print_exc()

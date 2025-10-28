@@ -17,6 +17,7 @@ import subprocess
 import sys
 import time
 from datetime import datetime, timezone
+from decimal import Decimal
 from pathlib import Path
 from typing import Dict, List, Optional
 
@@ -298,6 +299,184 @@ class StrategyManager:
         except KeyboardInterrupt:
             print("\nStopped monitoring")
     
+    async def run_strategy(self, strategy_name: str, mode: str = 'paper') -> None:
+        """
+        Run a strategy using the live strategy executor.
+        
+        Args:
+            strategy_name: Name of the strategy to run
+            mode: Execution mode ('paper' or 'backtest')
+        """
+        script_path = project_root / 'scripts' / 'run_live_strategy.py'
+        
+        cmd = [
+            sys.executable,
+            str(script_path),
+            strategy_name,
+            '--mode', mode
+        ]
+        
+        try:
+            logger.info(f"Running strategy '{strategy_name}' in {mode} mode...")
+            proc = subprocess.run(cmd, cwd=str(project_root))
+            return proc.returncode == 0
+        except Exception as e:
+            logger.error(f"Error running strategy '{strategy_name}': {e}")
+            return False
+    
+    async def backtest_strategy(
+        self, 
+        strategy_name: str, 
+        start_date: str, 
+        end_date: str,
+        initial_capital: float = 100000
+    ) -> None:
+        """
+        Run a backtest for a strategy.
+        
+        Args:
+            strategy_name: Name of the strategy to backtest
+            start_date: Start date (YYYY-MM-DD)
+            end_date: End date (YYYY-MM-DD)
+            initial_capital: Starting capital
+        """
+        from src.strategies.backtesting.backtest_engine import BacktestEngine
+        from src.strategies.base import BaseStrategy
+        from src.core.config_loader import get_strategies_config
+        
+        try:
+            # Load strategy configuration
+            strategies_config = get_strategies_config()
+            if strategy_name not in strategies_config.strategies:
+                logger.error(f"Strategy '{strategy_name}' not found in configuration")
+                return
+            
+            strategy_config = strategies_config.strategies[strategy_name]
+            
+            # Import and create strategy instance
+            class_path = strategy_config.get('class')
+            if not class_path:
+                logger.error(f"No 'class' specified for strategy '{strategy_name}'")
+                return
+            
+            module_path, class_name = class_path.rsplit('.', 1)
+            import importlib
+            module = importlib.import_module(module_path)
+            strategy_class = getattr(module, class_name)
+            
+            strategy = strategy_class(
+                name=strategy_name,
+                config=strategy_config.get('parameters', {}),
+                symbols=strategy_config.get('symbols', []),
+            )
+            
+            # Create backtest engine
+            engine = BacktestEngine()
+            await engine.initialize()
+            
+            # Parse dates
+            from datetime import datetime
+            start_dt = datetime.strptime(start_date, '%Y-%m-%d')
+            end_dt = datetime.strptime(end_date, '%Y-%m-%d')
+            
+            # Run backtest
+            logger.info(f"Running backtest for '{strategy_name}' from {start_date} to {end_date}")
+            result = await engine.run_backtest(
+                strategy=strategy,
+                start_date=start_dt,
+                end_date=end_dt,
+                initial_capital=Decimal(str(initial_capital))
+            )
+            
+            # Display results
+            print("\n" + "="*60)
+            print(f"BACKTEST RESULTS: {strategy_name}")
+            print("="*60)
+            print(f"Period: {result.start_date.date()} to {result.end_date.date()}")
+            print(f"Initial Capital: ${result.initial_capital:,.2f}")
+            print(f"Final Capital: ${result.final_capital:,.2f}")
+            print(f"Total Return: {result.total_return:.2f}%")
+            print(f"Annualized Return: {result.annualized_return:.2f}%" if result.annualized_return else "N/A")
+            print(f"Max Drawdown: {result.max_drawdown:.2f}%" if result.max_drawdown else "N/A")
+            print(f"Sharpe Ratio: {result.sharpe_ratio:.4f}" if result.sharpe_ratio else "N/A")
+            print(f"Sortino Ratio: {result.sortino_ratio:.4f}" if result.sortino_ratio else "N/A")
+            print(f"Win Rate: {result.win_rate:.2%}" if result.win_rate else "N/A")
+            print(f"Profit Factor: {result.profit_factor:.2f}" if result.profit_factor else "N/A")
+            print(f"Total Trades: {result.total_trades}")
+            print("="*60)
+            
+            await engine.shutdown()
+            
+        except Exception as e:
+            logger.error(f"Error running backtest: {e}", exc_info=True)
+    
+    async def show_performance(
+        self,
+        strategy_name: str,
+        symbol: Optional[str] = None,
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None
+    ) -> None:
+        """
+        Show performance metrics for a strategy.
+        
+        Args:
+            strategy_name: Name of the strategy
+            symbol: Filter by symbol (None for all)
+            start_date: Start date filter (YYYY-MM-DD)
+            end_date: End date filter (YYYY-MM-DD)
+        """
+        from src.strategies.performance.tracker import StrategyPerformanceTracker
+        from datetime import date
+        
+        try:
+            tracker = StrategyPerformanceTracker()
+            await tracker.initialize()
+            
+            # Parse dates
+            start_dt = date.fromisoformat(start_date) if start_date else None
+            end_dt = date.fromisoformat(end_date) if end_date else None
+            
+            # Get performance report
+            report = await tracker.generate_performance_report(
+                strategy_name=strategy_name,
+                symbol=symbol or "AAPL",  # Default to AAPL
+                start_date=start_dt,
+                end_date=end_dt
+            )
+            
+            # Display report
+            print("\n" + "="*60)
+            print(f"PERFORMANCE REPORT: {strategy_name}")
+            print("="*60)
+            print(f"Symbol: {report['symbol']}")
+            print(f"Period: {report['period']}")
+            
+            if 'message' in report:
+                print(f"Status: {report['message']}")
+            else:
+                summary = report['summary']
+                print(f"Total Trades: {summary['total_trades']}")
+                print(f"Total P&L: ${summary['total_pnl']:,.2f}")
+                print(f"Average Daily P&L: ${summary['avg_daily_pnl']:,.2f}")
+                print(f"Overall Win Rate: {summary['overall_win_rate']:.2%}")
+                print(f"Max Drawdown: {summary['max_drawdown']:.2f}%")
+                print(f"Average Sharpe Ratio: {summary['avg_sharpe_ratio']:.4f}")
+                print(f"Average Sortino Ratio: {summary['avg_sortino_ratio']:.4f}")
+                print(f"Average Profit Factor: {summary['avg_profit_factor']:.2f}")
+                
+                if report['best_day']:
+                    print(f"\nBest Day: {report['best_day']['date']} (${report['best_day']['pnl']:,.2f})")
+                if report['worst_day']:
+                    print(f"Worst Day: {report['worst_day']['date']} (${report['worst_day']['pnl']:,.2f})")
+            
+            print("="*60)
+            
+            await tracker.shutdown()
+            
+        except Exception as e:
+            logger.error(f"Error getting performance metrics: {e}", exc_info=True)
+    
     async def show_signals(
         self,
         strategy_name: Optional[str] = None,
@@ -394,6 +573,27 @@ Examples:
     # Stop-all command
     subparsers.add_parser('stop-all', help='Stop all running strategies')
     
+    # Run command (new)
+    run_parser = subparsers.add_parser('run', help='Run a strategy in paper trading mode')
+    run_parser.add_argument('strategy', help='Strategy name to run')
+    run_parser.add_argument('--mode', choices=['paper', 'backtest'], default='paper', 
+                           help='Execution mode (default: paper)')
+    
+    # Backtest command (new)
+    backtest_parser = subparsers.add_parser('backtest', help='Run a backtest for a strategy')
+    backtest_parser.add_argument('strategy', help='Strategy name to backtest')
+    backtest_parser.add_argument('--start', required=True, help='Start date (YYYY-MM-DD)')
+    backtest_parser.add_argument('--end', required=True, help='End date (YYYY-MM-DD)')
+    backtest_parser.add_argument('--capital', type=float, default=100000, 
+                                help='Initial capital (default: 100000)')
+    
+    # Performance command (new)
+    performance_parser = subparsers.add_parser('performance', help='Show strategy performance metrics')
+    performance_parser.add_argument('strategy', help='Strategy name')
+    performance_parser.add_argument('--symbol', help='Filter by symbol (default: AAPL)')
+    performance_parser.add_argument('--start', help='Start date filter (YYYY-MM-DD)')
+    performance_parser.add_argument('--end', help='End date filter (YYYY-MM-DD)')
+    
     # Status command
     status_parser = subparsers.add_parser('status', help='Show strategy status')
     status_parser.add_argument('--watch', action='store_true', help='Continuously update display')
@@ -428,6 +628,25 @@ Examples:
         
         elif args.command == 'status':
             await manager.show_status(watch=args.watch)
+        
+        elif args.command == 'run':
+            await manager.run_strategy(args.strategy, args.mode)
+        
+        elif args.command == 'backtest':
+            await manager.backtest_strategy(
+                strategy_name=args.strategy,
+                start_date=args.start,
+                end_date=args.end,
+                initial_capital=args.capital
+            )
+        
+        elif args.command == 'performance':
+            await manager.show_performance(
+                strategy_name=args.strategy,
+                symbol=args.symbol,
+                start_date=args.start,
+                end_date=args.end
+            )
         
         elif args.command == 'signals':
             await manager.show_signals(

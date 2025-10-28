@@ -76,5 +76,5 @@ class IBKRHistoricalCollector(HistoricalProviderBase):
                 'updated': res.records_updated,
                 'skipped': res.records_skipped,
                 'error': res.error,
+                'records': records,
             }
-

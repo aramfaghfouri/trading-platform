@@ -53,6 +53,9 @@ class BaseStrategy(ABC):
         self.state = StrategyState(strategy_name=name)
         self.is_initialized = False
         
+        # Timeframe for data (default to 1-minute)
+        self.timeframe = config.get('timeframe', '1m')
+        
         # Internal data cache
         self._bar_cache: Dict[str, pd.DataFrame] = {symbol: pd.DataFrame() for symbol in self.symbols}
         
@@ -179,8 +182,9 @@ class BaseStrategy(ABC):
         if not self.db_pool:
             raise RuntimeError("Database not connected")
         
-        # Determine table name (assuming IBKR 5-second bars)
-        table_name = f"ibkr_ohlcv_{symbol.lower()}_5s"
+        # Determine table name (default to 1-minute bars)
+        timeframe = getattr(self, 'timeframe', '1m')
+        table_name = f"ibkr_ohlcv_{symbol.lower()}_{timeframe}"
         
         query = f"""
             SELECT timestamp, open, high, low, close, volume
@@ -214,7 +218,7 @@ class BaseStrategy(ABC):
         self,
         symbol: str,
         num_bars: int,
-        timeframe: str = '5s',
+        timeframe: str = '1m',
     ) -> List[BarData]:
         """
         Query recent bars from database.
@@ -267,7 +271,7 @@ class BaseStrategy(ABC):
         self,
         symbol: str,
         since_timestamp: datetime,
-        timeframe: str = '5s',
+        timeframe: str = '1m',
     ) -> List[BarData]:
         """
         Query bars since a specific timestamp.

@@ -28,6 +28,14 @@ class OrderType(str, Enum):
     STOP_LIMIT = 'STOP_LIMIT'
 
 
+class TimeInForce(str, Enum):
+    """Time in force for orders."""
+    DAY = 'DAY'  # Valid for the day
+    GTC = 'GTC'  # Good Till Cancelled
+    IOC = 'IOC'  # Immediate or Cancel
+    FOK = 'FOK'  # Fill or Kill
+
+
 class SignalType(str, Enum):
     """Trading signal types."""
     BUY = 'BUY'
@@ -35,6 +43,94 @@ class SignalType(str, Enum):
     HOLD = 'HOLD'
     CLOSE_LONG = 'CLOSE_LONG'
     CLOSE_SHORT = 'CLOSE_SHORT'
+
+
+@dataclass
+class StopLossSpec:
+    """Stop-loss order specification."""
+    stop_price: Decimal
+    quantity: Optional[int] = None  # If None, uses parent order quantity
+    time_in_force: TimeInForce = TimeInForce.GTC
+    
+    def __post_init__(self):
+        """Validate stop-loss specification."""
+        if self.stop_price <= 0:
+            raise ValueError(f"Stop price must be positive, got {self.stop_price}")
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary for serialization."""
+        return {
+            'stop_price': float(self.stop_price),
+            'quantity': self.quantity,
+            'time_in_force': self.time_in_force.value,
+        }
+
+
+@dataclass
+class TakeProfitSpec:
+    """Take-profit order specification."""
+    limit_price: Decimal
+    quantity: Optional[int] = None  # If None, uses parent order quantity
+    time_in_force: TimeInForce = TimeInForce.GTC
+    
+    def __post_init__(self):
+        """Validate take-profit specification."""
+        if self.limit_price <= 0:
+            raise ValueError(f"Limit price must be positive, got {self.limit_price}")
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary for serialization."""
+        return {
+            'limit_price': float(self.limit_price),
+            'quantity': self.quantity,
+            'time_in_force': self.time_in_force.value,
+        }
+
+
+@dataclass
+class TrailingStopSpec:
+    """Trailing stop order specification."""
+    trail_amount: Decimal  # Fixed dollar amount to trail
+    trail_percent: Optional[Decimal] = None  # Percentage to trail (alternative to trail_amount)
+    quantity: Optional[int] = None  # If None, uses parent order quantity
+    time_in_force: TimeInForce = TimeInForce.GTC
+    
+    def __post_init__(self):
+        """Validate trailing stop specification."""
+        if self.trail_amount <= 0:
+            raise ValueError(f"Trail amount must be positive, got {self.trail_amount}")
+        if self.trail_percent is not None and not (0 < self.trail_percent < 1):
+            raise ValueError(f"Trail percent must be between 0 and 1, got {self.trail_percent}")
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary for serialization."""
+        return {
+            'trail_amount': float(self.trail_amount),
+            'trail_percent': float(self.trail_percent) if self.trail_percent else None,
+            'quantity': self.quantity,
+            'time_in_force': self.time_in_force.value,
+        }
+
+
+@dataclass
+class BracketOrderSpec:
+    """Bracket order specification (entry + stop-loss + take-profit)."""
+    entry_order: OrderSpec
+    stop_loss: Optional[StopLossSpec] = None
+    take_profit: Optional[TakeProfitSpec] = None
+    
+    def __post_init__(self):
+        """Validate bracket order specification."""
+        if not self.stop_loss and not self.take_profit:
+            raise ValueError("Bracket order must have at least stop-loss or take-profit")
+    
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert to dictionary for serialization."""
+        return {
+            'entry_order': self.entry_order.to_dict(),
+            'stop_loss': self.stop_loss.to_dict() if self.stop_loss else None,
+            'take_profit': self.take_profit.to_dict() if self.take_profit else None,
+        }
 
 
 @dataclass
@@ -48,25 +144,31 @@ class OrderSpec:
     action: OrderAction
     quantity: int
     order_type: OrderType = OrderType.MARKET
-    price: Optional[Decimal] = None  # Required for LIMIT orders
-    stop_price: Optional[Decimal] = None  # Required for STOP orders
+    limit_price: Optional[Decimal] = None  # For LIMIT orders
+    stop_price: Optional[Decimal] = None  # For STOP orders
+    time_in_force: TimeInForce = TimeInForce.DAY
     strategy_name: str = ""
     metadata: Dict[str, Any] = field(default_factory=dict)
     timestamp: datetime = field(default_factory=datetime.utcnow)
+    
+    # Advanced order types
+    stop_loss: Optional[StopLossSpec] = None
+    take_profit: Optional[TakeProfitSpec] = None
+    trailing_stop: Optional[TrailingStopSpec] = None
     
     def __post_init__(self):
         """Validate order specification."""
         if self.quantity <= 0:
             raise ValueError(f"Order quantity must be positive, got {self.quantity}")
         
-        if self.order_type == OrderType.LIMIT and self.price is None:
-            raise ValueError("LIMIT orders require a price")
+        if self.order_type == OrderType.LIMIT and self.limit_price is None:
+            raise ValueError("LIMIT orders require a limit_price")
         
         if self.order_type in (OrderType.STOP, OrderType.STOP_LIMIT) and self.stop_price is None:
             raise ValueError("STOP orders require a stop_price")
         
-        if self.order_type == OrderType.STOP_LIMIT and self.price is None:
-            raise ValueError("STOP_LIMIT orders require both price and stop_price")
+        if self.order_type == OrderType.STOP_LIMIT and self.limit_price is None:
+            raise ValueError("STOP_LIMIT orders require both limit_price and stop_price")
     
     def to_dict(self) -> Dict[str, Any]:
         """Convert to dictionary for serialization."""
@@ -75,26 +177,65 @@ class OrderSpec:
             'action': self.action.value,
             'quantity': self.quantity,
             'order_type': self.order_type.value,
-            'price': float(self.price) if self.price else None,
+            'limit_price': float(self.limit_price) if self.limit_price else None,
             'stop_price': float(self.stop_price) if self.stop_price else None,
+            'time_in_force': self.time_in_force.value,
             'strategy_name': self.strategy_name,
             'metadata': self.metadata,
             'timestamp': self.timestamp.isoformat(),
+            'stop_loss': self.stop_loss.to_dict() if self.stop_loss else None,
+            'take_profit': self.take_profit.to_dict() if self.take_profit else None,
+            'trailing_stop': self.trailing_stop.to_dict() if self.trailing_stop else None,
         }
     
     @classmethod
     def from_dict(cls, data: Dict[str, Any]) -> OrderSpec:
         """Create from dictionary."""
+        # Helper function to create StopLossSpec from dict
+        def create_stop_loss(data_dict):
+            if not data_dict:
+                return None
+            return StopLossSpec(
+                stop_price=Decimal(str(data_dict['stop_price'])),
+                quantity=data_dict.get('quantity'),
+                time_in_force=TimeInForce(data_dict.get('time_in_force', 'GTC'))
+            )
+        
+        # Helper function to create TakeProfitSpec from dict
+        def create_take_profit(data_dict):
+            if not data_dict:
+                return None
+            return TakeProfitSpec(
+                limit_price=Decimal(str(data_dict['limit_price'])),
+                quantity=data_dict.get('quantity'),
+                time_in_force=TimeInForce(data_dict.get('time_in_force', 'GTC'))
+            )
+        
+        # Helper function to create TrailingStopSpec from dict
+        def create_trailing_stop(data_dict):
+            if not data_dict:
+                return None
+            return TrailingStopSpec(
+                trail_amount=Decimal(str(data_dict['trail_amount'])),
+                trail_percent=Decimal(str(data_dict['trail_percent'])) if data_dict.get('trail_percent') else None,
+                quantity=data_dict.get('quantity'),
+                time_in_force=TimeInForce(data_dict.get('time_in_force', 'GTC'))
+            )
+        
         return cls(
             symbol=data['symbol'],
             action=OrderAction(data['action']),
             quantity=data['quantity'],
             order_type=OrderType(data['order_type']),
-            price=Decimal(str(data['price'])) if data.get('price') else None,
+            limit_price=Decimal(str(data['limit_price'])) if data.get('limit_price') else None,
             stop_price=Decimal(str(data['stop_price'])) if data.get('stop_price') else None,
+            time_in_force=TimeInForce(data.get('time_in_force', 'DAY')),
             strategy_name=data.get('strategy_name', ''),
             metadata=data.get('metadata', {}),
             timestamp=datetime.fromisoformat(data['timestamp']) if 'timestamp' in data else datetime.utcnow(),
+            stop_loss=create_stop_loss(data.get('stop_loss')),
+            take_profit=create_take_profit(data.get('take_profit')),
+            trailing_stop=create_trailing_stop(data.get('trailing_stop')),
         )
 
 

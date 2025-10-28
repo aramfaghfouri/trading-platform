@@ -3,65 +3,84 @@ strategies:
   # Strategy Registry
   registry:
     enabled_strategies:
-      - "sma_crossover"
-      - "rsi_mean_reversion"
+      - "sma_crossover_aapl"
+      - "rsi_mean_reversion_aapl"
+      - "bollinger_bands_aapl"
+      - "macd_momentum_aapl"
       
     # Strategy Settings
     max_concurrent_strategies: 10
     strategy_timeout: 300  # seconds
     enable_parallel_execution: true
-    poll_interval_seconds: 5  # How often to poll database for new data
+    poll_interval_seconds: 10  # How often to poll database for new data
       
-  # SMA Crossover Strategy
-  sma_crossover:
+  # SMA Crossover Strategy for AAPL
+  sma_crossover_aapl:
     enabled: true
     class: "src.strategies.implementations.sma_crossover.SMACrossover"
+    symbols: ["AAPL"]
+    timeframe: "1m"
     parameters:
       short_window: 20
       long_window: 50
       quantity: 100
       min_lookback: 60
-    risk_management:
-      position_size: 0.1  # 10% of portfolio
-      stop_loss: 0.05     # 5% stop loss
-      take_profit: 0.15   # 15% take profit
-    symbols:
-      - "AAPL"
+    paper_trading:
+      enabled: true
+      initial_capital: 100000
+      commission_per_share: 0.005
       
-  # RSI Mean Reversion Strategy
-  rsi_mean_reversion:
+  # RSI Mean Reversion Strategy for AAPL
+  rsi_mean_reversion_aapl:
     enabled: true
     class: "src.strategies.implementations.rsi_mean_reversion.RSIMeanReversion"
+    symbols: ["AAPL"]
+    timeframe: "1m"
     parameters:
       rsi_period: 14
       oversold_threshold: 30
       overbought_threshold: 70
       quantity: 100
       min_lookback: 30
-    risk_management:
-      position_size: 0.08  # 8% of portfolio
-      stop_loss: 0.03      # 3% stop loss
-      take_profit: 0.08    # 8% take profit
-    symbols:
-      - "AAPL"
+    paper_trading:
+      enabled: true
+      initial_capital: 100000
+      commission_per_share: 0.005
       
-  # Bollinger Bands Strategy
-  bollinger_bands:
+  # Bollinger Bands Strategy for AAPL
+  bollinger_bands_aapl:
     enabled: true
+    class: "src.strategies.implementations.bollinger_bands.BollingerBands"
+    symbols: ["AAPL"]
+    timeframe: "1m"
     parameters:
       period: 20
-      std_dev: 2
-      lookback_period: 50
-    risk_management:
-      position_size: 0.12  # 12% of portfolio
-      stop_loss: 0.04      # 4% stop loss
-      take_profit: 0.12    # 12% take profit
-    symbols:
-      - "AAPL"
-      - "MSFT"
-      - "GOOGL"
-      - "AMZN"
-      - "TSLA"
+      std_dev: 2.0
+      quantity: 100
+      min_lookback: 30
+      strategy_type: "mean_reversion"  # or "breakout"
+    paper_trading:
+      enabled: true
+      initial_capital: 100000
+      commission_per_share: 0.005
+      
+  # MACD Momentum Strategy for AAPL
+  macd_momentum_aapl:
+    enabled: true
+    class: "src.strategies.implementations.macd_momentum.MACDMomentum"
+    symbols: ["AAPL"]
+    timeframe: "1m"
+    parameters:
+      fast_period: 12
+      slow_period: 26
+      signal_period: 9
+      quantity: 100
+      min_lookback: 45
+      use_histogram: false
+    paper_trading:
+      enabled: true
+      initial_capital: 100000
+      commission_per_share: 0.005
       
   # Momentum Strategy
   momentum:
@@ -100,13 +119,20 @@ strategies:
       
   # Strategy Performance Settings
   performance:
+    # Paper Trading Settings
+    paper_trading:
+      default_initial_capital: 100000
+      default_commission_per_share: 0.005
+      enable_performance_tracking: true
+      
     # Backtesting Settings
     backtesting:
-      start_date: "2023-01-01"
-      end_date: "2024-01-01"
+      start_date: "2024-01-01"
+      end_date: "2024-12-31"
       initial_capital: 100000
-      commission: 0.001  # 0.1% commission
-      slippage: 0.0005   # 0.05% slippage
+      commission_per_share: 0.005
+      enable_equity_curve: true
+      enable_trade_analysis: true
       
     # Performance Metrics
     metrics:

@@ -398,13 +398,14 @@ start_ibkr_realtime() {
     chart_live() {
         local symbol="${1:-AAPL}"
         local update_freq="${2:-minute}"
-        print_status "Starting live chart for ${symbol} (update: ${update_freq})..."
+        print_status "Starting live chart for ${symbol} with automatic backfill and real-time streaming..."
         
         cd "$PROJECT_ROOT"
         eval "$(conda shell.bash hook)"
         conda activate env-trading
         
-        python scripts/chart_from_database.py "$symbol" --update-freq "$update_freq" || {
+        # Use final_live_chart.py which automatically backfills gaps and streams real-time data
+        python scripts/final_live_chart.py "$symbol" || {
             print_error "Live chart failed"; exit 1; }
     }
 

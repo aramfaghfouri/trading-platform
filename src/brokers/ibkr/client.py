@@ -1,5 +1,6 @@
 import os
 from typing import List
+from loguru import logger
 from ib_async import IB, Stock, MarketOrder, LimitOrder
 
 
@@ -60,6 +61,22 @@ class IBClient:
         format_date: int = 1,
     ):
         contract = Stock(symbol, 'SMART', 'USD')
+
+        try:
+            qualified = await self.ib.qualifyContractsAsync(contract)
+            resolved = None
+            if qualified:
+                resolved = qualified[0]
+                if isinstance(resolved, list):
+                    resolved = next((item for item in resolved if item is not None), None)
+            if resolved:
+                contract = resolved
+                logger.debug("IBKR historical contract resolved for {} -> {}", symbol, contract)
+            else:
+                logger.debug("IBKR historical contract qualification returned no match for {}", symbol)
+        except Exception as exc:
+            logger.warning("IBKR contract qualification failed for {}: {}", symbol, exc)
+
         bars = await self.ib.reqHistoricalDataAsync(
             contract,
             endDateTime=end_datetime,
@@ -70,5 +87,3 @@ class IBClient:
             formatDate=format_date,
         )
         return bars
-
-
