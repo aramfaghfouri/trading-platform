@@ -7,6 +7,7 @@ strategies:
       - "rsi_mean_reversion_aapl"
       - "bollinger_bands_aapl"
       - "macd_momentum_aapl"
+      - "nts_fast4_aapl"
       
     # Strategy Settings
     max_concurrent_strategies: 10
@@ -77,6 +78,26 @@ strategies:
       quantity: 100
       min_lookback: 45
       use_histogram: false
+    paper_trading:
+      enabled: true
+      initial_capital: 100000
+      commission_per_share: 0.005
+      
+  # NTS FAST4 Strategy for AAPL
+  nts_fast4_aapl:
+    enabled: true
+    class: "src.strategies.implementations.nts_fast4.NTSFast4"
+    symbols: ["AAPL"]
+    timeframe: "5m"
+    parameters:
+      trail_type: "modified"  # or "unmodified"
+      atr_period: 185
+      atr_factor: 3.0
+      use_take_profit: true
+      tp_fib_level: "78.6"  # "61.8", "78.6", "88.6", "100.0"
+      quantity: 100
+      min_lookback: 200
+      mtf_resolution: "5m->15m"  # Chart TF -> Signal TF
     paper_trading:
       enabled: true
       initial_capital: 100000

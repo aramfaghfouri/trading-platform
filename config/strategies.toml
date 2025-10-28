@@ -1,0 +1,175 @@
+# Trading Strategies Configuration
+
+[strategies.registry]
+enabled_strategies = [
+    "sma_crossover_aapl",
+    "rsi_mean_reversion_aapl",
+    "bollinger_bands_aapl",
+    "macd_momentum_aapl",
+    "nts_fast4_aapl"
+]
+max_concurrent_strategies = 10
+strategy_timeout = 300  # seconds
+enable_parallel_execution = true
+poll_interval_seconds = 10  # How often to poll database for new data
+
+# SMA Crossover Strategy for AAPL
+[strategies.sma_crossover_aapl]
+enabled = true
+class = "src.strategies.implementations.sma_crossover.SMACrossover"
+symbols = ["AAPL"]
+timeframe = "1m"
+
+[strategies.sma_crossover_aapl.parameters]
+short_window = 20
+long_window = 50
+quantity = 100
+min_lookback = 60
+
+[strategies.sma_crossover_aapl.paper_trading]
+enabled = true
+initial_capital = 100000
+commission_per_share = 0.005
+
+# RSI Mean Reversion Strategy for AAPL
+[strategies.rsi_mean_reversion_aapl]
+enabled = true
+class = "src.strategies.implementations.rsi_mean_reversion.RSIMeanReversion"
+symbols = ["AAPL"]
+timeframe = "1m"
+
+[strategies.rsi_mean_reversion_aapl.parameters]
+rsi_period = 14
+oversold_threshold = 30
+overbought_threshold = 70
+quantity = 100
+min_lookback = 30
+
+[strategies.rsi_mean_reversion_aapl.paper_trading]
+enabled = true
+initial_capital = 100000
+commission_per_share = 0.005
+
+# Bollinger Bands Strategy for AAPL
+[strategies.bollinger_bands_aapl]
+enabled = true
+class = "src.strategies.implementations.bollinger_bands.BollingerBands"
+symbols = ["AAPL"]
+timeframe = "1m"
+
+[strategies.bollinger_bands_aapl.parameters]
+period = 20
+std_dev = 2.0
+quantity = 100
+min_lookback = 30
+strategy_type = "mean_reversion"  # or "breakout"
+
+[strategies.bollinger_bands_aapl.paper_trading]
+enabled = true
+initial_capital = 100000
+commission_per_share = 0.005
+
+# MACD Momentum Strategy for AAPL
+[strategies.macd_momentum_aapl]
+enabled = true
+class = "src.strategies.implementations.macd_momentum.MACDMomentum"
+symbols = ["AAPL"]
+timeframe = "1m"
+
+[strategies.macd_momentum_aapl.parameters]
+fast_period = 12
+slow_period = 26
+signal_period = 9
+quantity = 100
+min_lookback = 45
+use_histogram = false
+
+[strategies.macd_momentum_aapl.paper_trading]
+enabled = true
+initial_capital = 100000
+commission_per_share = 0.005
+
+# NTS FAST4 Strategy for AAPL
+[strategies.nts_fast4_aapl]
+enabled = true
+class = "src.strategies.implementations.nts_fast4.NTSFast4"
+symbols = ["AAPL"]
+timeframe = "5m"
+
+[strategies.nts_fast4_aapl.parameters]
+trail_type = "modified"  # or "unmodified"
+atr_period = 185
+atr_factor = 3.0
+use_take_profit = true
+tp_fib_level = "78.6"  # "61.8", "78.6", "88.6", "100.0"
+quantity = 100
+min_lookback = 200
+mtf_resolution = "5m->15m"  # Chart TF -> Signal TF
+
+[strategies.nts_fast4_aapl.paper_trading]
+enabled = true
+initial_capital = 100000
+commission_per_share = 0.005
+
+# Momentum Strategy
+[strategies.momentum]
+enabled = false  # Disabled by default
+
+[strategies.momentum.parameters]
+lookback_period = 20
+momentum_threshold = 0.05  # 5% momentum threshold
+volume_threshold = 1.5  # 1.5x average volume
+
+[strategies.momentum.risk_management]
+position_size = 0.15  # 15% of portfolio
+stop_loss = 0.06  # 6% stop loss
+take_profit = 0.20  # 20% take profit
+
+# Note: Arrays in TOML should be inline, but we'll handle symbols differently
+# Symbols for momentum will be defined in the strategy class
+
+# Mean Reversion Strategy
+[strategies.mean_reversion]
+enabled = false  # Disabled by default
+
+[strategies.mean_reversion.parameters]
+lookback_period = 20
+z_score_threshold = 2.0
+reversion_threshold = 0.02  # 2% reversion threshold
+
+[strategies.mean_reversion.risk_management]
+position_size = 0.10  # 10% of portfolio
+stop_loss = 0.04  # 4% stop loss
+take_profit = 0.10  # 10% take profit
+
+[strategies.mean_reversion]
+symbols = ["AAPL", "MSFT", "GOOGL"]
+
+# Strategy Performance Settings
+[strategies.performance.paper_trading]
+default_initial_capital = 100000
+default_commission_per_share = 0.005
+enable_performance_tracking = true
+
+[strategies.performance.backtesting]
+start_date = "2024-01-01"
+end_date = "2024-12-31"
+initial_capital = 100000
+commission_per_share = 0.005
+enable_equity_curve = true
+enable_trade_analysis = true
+
+[strategies.performance.metrics]
+calculate_sharpe = true
+calculate_sortino = true
+calculate_max_drawdown = true
+calculate_win_rate = true
+calculate_profit_factor = true
+
+[strategies.performance.risk_metrics]
+calculate_var = true
+var_confidence = 0.95
+calculate_cvar = true
+calculate_volatility = true
+volatility_window = 252  # 1 year
+

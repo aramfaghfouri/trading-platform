@@ -124,9 +124,39 @@ class ConfigLoader:
                 self._config_cache[config_key] = value
                 logger.debug(f"Loaded environment variable {env_var} -> {config_key}")
     
-    def load_yaml_config(self, config_file: str) -> Dict[str, Any]:
+    def load_toml_config(self, config_file: str) -> Dict[str, Any]:
         """
-        Load configuration from a YAML file.
+        Load configuration from a TOML file.
+        
+        Args:
+            config_file: Name of the TOML configuration file
+            
+        Returns:
+            Configuration dictionary
+        """
+        import tomli  # Use tomli for Python < 3.11
+        
+        config_path = self.config_dir / config_file
+        
+        if not config_path.exists():
+            raise ConfigurationError(f"Configuration file not found: {config_path}")
+            
+        try:
+            with open(config_path, 'rb') as f:
+                config = tomli.load(f)
+                
+            if config is None:
+                config = {}
+                
+            self._config_cache[config_file] = config
+            logger.info(f"Loaded configuration from {config_path}")
+            return config
+            
+        except Exception as e:
+            raise ConfigurationError(f"Error loading TOML file {config_path}: {e}")
+
+    def load_yaml_config(self, config_file: str) -> Dict[str, Any]:
+        """Load configuration from a YAML file.
         
         Args:
             config_file: Name of the configuration file

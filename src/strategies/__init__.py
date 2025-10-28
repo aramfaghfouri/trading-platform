@@ -8,17 +8,21 @@ This module contains:
 - Performance metrics and analysis
 """
 
-from .base import BaseStrategy, StrategyRegistry
+from .base import BaseStrategy
 from .implementations import (
-    SMACrossoverStrategy,
-    RSIMeanReversionStrategy,
-    BollingerBandsStrategy,
+    SMACrossover,
+    RSIMeanReversion,
+    BollingerBands,
+    MACDMomentum,
 )
+
+# Note: NTSFast4 is now in strategies/nts_fast4/ directory
+# Import it directly when needed: from strategies.nts_fast4 import NTSFast4
 
 __all__ = [
     "BaseStrategy",
-    "StrategyRegistry",
-    "SMACrossoverStrategy",
-    "RSIMeanReversionStrategy", 
-    "BollingerBandsStrategy",
+    "SMACrossover",
+    "RSIMeanReversion", 
+    "BollingerBands",
+    "MACDMomentum",
 ]
